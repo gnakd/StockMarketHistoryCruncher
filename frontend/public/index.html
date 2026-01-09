@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#ff6b35" />
+  <meta name="description" content="Stock Market History Cruncher - Analyze historical market performance after trigger conditions" />
+  <title>Stock Market History Cruncher</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --primary-orange: #ff6b35;
+      --chart-blue: #4a90d9;
+      --chart-green: #28a745;
+      --positive-green: #28a745;
+      --negative-red: #dc3545;
+    }
+
+    body {
+      background-color: #f8f9fa;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    .header-bar {
+      background-color: var(--primary-orange);
+      color: white;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .card {
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 1.5rem;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 400px;
+      width: 100%;
+    }
+
+    .table-positive {
+      color: #155724;
+      background-color: rgba(40, 167, 69, 0.15);
+      font-weight: 600;
+    }
+
+    .table-negative {
+      color: #721c24;
+      background-color: rgba(220, 53, 69, 0.15);
+      font-weight: 600;
+    }
+
+    .results-table {
+      font-size: 0.875rem;
+    }
+
+    .results-table th {
+      background-color: #343a40;
+      color: white;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .results-table th:hover {
+      background-color: #495057;
+    }
+
+    .results-table th.highlighted {
+      background-color: var(--primary-orange) !important;
+      box-shadow: inset 0 0 0 2px #fff;
+    }
+
+    .results-table td.highlighted {
+      border-left: 3px solid var(--primary-orange);
+      border-right: 3px solid var(--primary-orange);
+    }
+
+    .results-table tr:first-child td.highlighted {
+      border-top: 3px solid var(--primary-orange);
+    }
+
+    .results-table tr:last-child td.highlighted {
+      border-bottom: 3px solid var(--primary-orange);
+    }
+
+    .results-table .avg-row {
+      background-color: #e9ecef;
+      font-weight: bold;
+    }
+
+    .results-table .avg-row td.table-positive {
+      background-color: rgba(40, 167, 69, 0.25);
+    }
+
+    .results-table .avg-row td.table-negative {
+      background-color: rgba(220, 53, 69, 0.25);
+    }
+
+    .results-table .positive-row {
+      background-color: #f8f9fa;
+    }
+
+    .source-attribution {
+      font-size: 0.75rem;
+      color: #6c757d;
+      text-align: right;
+      margin-top: 0.5rem;
+    }
+
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255,255,255,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+
+    .btn-analyze {
+      background-color: var(--primary-orange);
+      border-color: var(--primary-orange);
+      color: white;
+    }
+
+    .btn-analyze:hover {
+      background-color: #e55a2b;
+      border-color: #e55a2b;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <noscript>You need to enable JavaScript to run this app.</noscript>
+  <div id="root"></div>
+</body>
+</html>
