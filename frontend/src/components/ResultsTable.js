@@ -52,6 +52,39 @@ function formatPositive(value) {
   return { text: formatted, className };
 }
 
+// Format value with relative color based on position in min-max range
+// Uses same CSS classes as Avg Max DD (table-negative, text-warning, table-positive)
+function formatRelative(value, min, max, higherIsBetter = true) {
+  if (value === null || value === undefined) {
+    return { text: 'N/A', className: 'text-muted' };
+  }
+
+  const formatted = `${value.toFixed(1)}%`;
+
+  // Handle edge case where all values are the same
+  if (max === min) {
+    return { text: formatted, className: 'text-warning' };
+  }
+
+  // Normalize value to 0-1 range
+  let normalized = (value - min) / (max - min);
+  if (!higherIsBetter) {
+    normalized = 1 - normalized;
+  }
+
+  // Apply same color scheme as Avg Max DD: red (low) -> yellow (mid) -> green (high)
+  let className;
+  if (normalized < 0.33) {
+    className = 'table-negative';
+  } else if (normalized < 0.67) {
+    className = 'text-warning';
+  } else {
+    className = 'table-positive';
+  }
+
+  return { text: formatted, className };
+}
+
 function computeCounts(events, column) {
   const values = events.map(e => e[column]).filter(v => v !== null && v !== undefined);
   const positiveCount = values.filter(v => v >= 0).length;
@@ -129,14 +162,31 @@ function ResultsTable({ events, averages, positives }) {
           {/* Positive Percentage Row */}
           <tr className="positive-row">
             <td className="fw-bold">% Positive:</td>
-            {RETURN_COLUMNS.map(col => {
-              const { text, className } = formatPositive(positives?.[col]);
-              return (
-                <td key={col} className={`text-center ${className} ${highlightedCol === col ? 'highlighted' : ''}`}>
-                  {text}
-                </td>
-              );
-            })}
+            {(() => {
+              // Calculate min/max for relative formatting (exclude max_drawdown)
+              const positiveValues = PERIOD_COLUMNS
+                .map(col => positives?.[col])
+                .filter(v => v !== null && v !== undefined);
+              const minPositive = Math.min(...positiveValues);
+              const maxPositive = Math.max(...positiveValues);
+
+              return RETURN_COLUMNS.map(col => {
+                if (col === 'max_drawdown') {
+                  // max_drawdown column doesn't have % positive
+                  return (
+                    <td key={col} className={`text-center text-muted ${highlightedCol === col ? 'highlighted' : ''}`}>
+                      -
+                    </td>
+                  );
+                }
+                const { text, className } = formatRelative(positives?.[col], minPositive, maxPositive, true);
+                return (
+                  <td key={col} className={`text-center ${className} ${highlightedCol === col ? 'highlighted' : ''}`}>
+                    {text}
+                  </td>
+                );
+              });
+            })()}
           </tr>
 
           {/* Positive Count Row */}
