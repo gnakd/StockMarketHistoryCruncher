@@ -145,7 +145,7 @@ function ResultsTable({ events, averages, positives }) {
             {RETURN_COLUMNS.map(col => {
               const { positiveCount } = computeCounts(events, col);
               return (
-                <td key={col} className={`text-center table-positive ${highlightedCol === col ? 'highlighted' : ''}`}>
+                <td key={col} className={`text-center count-cell ${highlightedCol === col ? 'highlighted' : ''}`}>
                   {positiveCount}
                 </td>
               );
@@ -158,7 +158,7 @@ function ResultsTable({ events, averages, positives }) {
             {RETURN_COLUMNS.map(col => {
               const { negativeCount } = computeCounts(events, col);
               return (
-                <td key={col} className={`text-center table-negative ${highlightedCol === col ? 'highlighted' : ''}`}>
+                <td key={col} className={`text-center count-cell ${highlightedCol === col ? 'highlighted' : ''}`}>
                   {negativeCount}
                 </td>
               );

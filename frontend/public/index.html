@@ -39,15 +39,24 @@
       width: 100%;
     }
 
-    .table-positive {
-      color: #155724;
-      background-color: rgba(40, 167, 69, 0.15);
+    /* Override Bootstrap table-striped with !important */
+    .results-table td.table-positive,
+    .results-table tbody tr td.table-positive {
+      color: #155724 !important;
+      background-color: rgba(40, 167, 69, 0.2) !important;
       font-weight: 600;
     }
 
-    .table-negative {
-      color: #721c24;
-      background-color: rgba(220, 53, 69, 0.15);
+    .results-table td.table-negative,
+    .results-table tbody tr td.table-negative {
+      color: #721c24 !important;
+      background-color: rgba(220, 53, 69, 0.2) !important;
+      font-weight: 600;
+    }
+
+    .results-table td.text-warning {
+      color: #856404 !important;
+      background-color: rgba(255, 193, 7, 0.2) !important;
       font-weight: 600;
     }
 
@@ -91,15 +100,34 @@
     }
 
     .results-table .avg-row td.table-positive {
-      background-color: rgba(40, 167, 69, 0.25);
+      background-color: rgba(40, 167, 69, 0.3) !important;
     }
 
     .results-table .avg-row td.table-negative {
-      background-color: rgba(220, 53, 69, 0.25);
+      background-color: rgba(220, 53, 69, 0.3) !important;
+    }
+
+    .results-table .avg-row td.text-warning {
+      background-color: rgba(255, 193, 7, 0.3) !important;
     }
 
     .results-table .positive-row {
       background-color: #f8f9fa;
+    }
+
+    .results-table .positive-row td.table-positive {
+      background-color: rgba(40, 167, 69, 0.15) !important;
+    }
+
+    .results-table .positive-row td.table-negative {
+      background-color: rgba(220, 53, 69, 0.15) !important;
+    }
+
+    /* Count rows - neutral styling */
+    .results-table td.count-cell {
+      font-weight: 600;
+      background-color: transparent !important;
+      color: #333 !important;
     }
 
     .source-attribution {

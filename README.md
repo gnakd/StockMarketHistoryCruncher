@@ -79,16 +79,16 @@ The React app will start at http://localhost:3000
 ## Usage
 
 1. Enter your Polygon.io API key
-2. Add condition tickers (e.g., ^DJI, ^DJT for Dow Industrials and Transports)
-3. Set the target ticker to analyze (e.g., ^GSPC for S&P 500)
+2. Add condition tickers (e.g., QQQ, AAPL)
+3. Set the target ticker to analyze (e.g., SPY for S&P 500)
 4. Select date range
 5. Choose condition type and parameters
 6. Click "Analyze"
 
 ### Example Analysis: Dow Theory Confirmation
 
-- **Condition Tickers:** ^DJI, ^DJT
-- **Target Ticker:** ^GSPC
+- **Condition Tickers:** DJI, DJT
+- **Target Ticker:** SPY
 - **Condition Type:** Dual All-Time High
 - **Days Gap:** 365
 
@@ -103,8 +103,8 @@ Fetches and analyzes stock data.
 **Request Body:**
 ```json
 {
-  "condition_tickers": ["^DJI", "^DJT"],
-  "target_ticker": "^GSPC",
+  "condition_tickers": ["QQQ", "AAPL"],
+  "target_ticker": "SPY",
   "start_date": "1990-01-01",
   "end_date": "2024-01-01",
   "condition_type": "dual_ath",
