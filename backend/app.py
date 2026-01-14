@@ -4,6 +4,7 @@ import requests
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
+import time
 from config import Config
 
 app = Flask(__name__)
@@ -123,6 +124,123 @@ def compute_momentum(prices_df, period):
     return prices_df['close'].pct_change(periods=period)
 
 
+def get_sp500_constituents():
+    """Return the full list of S&P 500 constituents"""
+    return [
+        'A', 'AAL', 'AAPL', 'ABBV', 'ABNB', 'ABT', 'ACGL', 'ACN', 'ADBE', 'ADI',
+        'ADM', 'ADP', 'ADSK', 'AEE', 'AEP', 'AES', 'AFL', 'AIG', 'AIZ', 'AJG',
+        'AKAM', 'ALB', 'ALGN', 'ALL', 'ALLE', 'AMAT', 'AMCR', 'AMD', 'AME', 'AMGN',
+        'AMP', 'AMT', 'AMZN', 'ANET', 'ANSS', 'AON', 'AOS', 'APA', 'APD', 'APH',
+        'APTV', 'ARE', 'ATO', 'AVB', 'AVGO', 'AVY', 'AWK', 'AXON', 'AXP', 'AZO',
+        'BA', 'BAC', 'BALL', 'BAX', 'BBWI', 'BBY', 'BDX', 'BEN', 'BF.B', 'BG',
+        'BIIB', 'BIO', 'BK', 'BKNG', 'BKR', 'BLDR', 'BLK', 'BMY', 'BR', 'BRK.B',
+        'BRO', 'BSX', 'BWA', 'BX', 'BXP', 'C', 'CAG', 'CAH', 'CARR', 'CAT',
+        'CB', 'CBOE', 'CBRE', 'CCI', 'CCL', 'CDNS', 'CDW', 'CE', 'CEG', 'CF',
+        'CFG', 'CHD', 'CHRW', 'CHTR', 'CI', 'CINF', 'CL', 'CLX', 'CMCSA', 'CME',
+        'CMG', 'CMI', 'CMS', 'CNC', 'CNP', 'COF', 'COO', 'COP', 'COR', 'COST',
+        'CPAY', 'CPB', 'CPRT', 'CPT', 'CRL', 'CRM', 'CRWD', 'CSCO', 'CSGP', 'CSX',
+        'CTAS', 'CTLT', 'CTRA', 'CTSH', 'CTVA', 'CVS', 'CVX', 'CZR', 'D', 'DAL',
+        'DAY', 'DD', 'DE', 'DECK', 'DFS', 'DG', 'DGX', 'DHI', 'DHR', 'DIS',
+        'DLR', 'DLTR', 'DOC', 'DOV', 'DOW', 'DPZ', 'DRI', 'DTE', 'DUK', 'DVA',
+        'DVN', 'DXCM', 'EA', 'EBAY', 'ECL', 'ED', 'EFX', 'EG', 'EIX', 'EL',
+        'ELV', 'EMN', 'EMR', 'ENPH', 'EOG', 'EPAM', 'EQIX', 'EQR', 'EQT', 'ES',
+        'ESS', 'ETN', 'ETR', 'ETSY', 'EVRG', 'EW', 'EXC', 'EXPD', 'EXPE', 'EXR',
+        'F', 'FANG', 'FAST', 'FCX', 'FDS', 'FDX', 'FE', 'FFIV', 'FI', 'FICO',
+        'FIS', 'FITB', 'FLT', 'FMC', 'FOX', 'FOXA', 'FRT', 'FSLR', 'FTNT', 'FTV',
+        'GD', 'GDDY', 'GE', 'GEHC', 'GEN', 'GEV', 'GILD', 'GIS', 'GL', 'GLW',
+        'GM', 'GNRC', 'GOOG', 'GOOGL', 'GPC', 'GPN', 'GRMN', 'GS', 'GWW', 'HAL',
+        'HAS', 'HBAN', 'HCA', 'HD', 'HES', 'HIG', 'HII', 'HLT', 'HOLX', 'HON',
+        'HPE', 'HPQ', 'HRL', 'HSIC', 'HST', 'HSY', 'HUBB', 'HUM', 'HWM', 'IBM',
+        'ICE', 'IDXX', 'IEX', 'IFF', 'ILMN', 'INCY', 'INTC', 'INTU', 'INVH', 'IP',
+        'IPG', 'IQV', 'IR', 'IRM', 'ISRG', 'IT', 'ITW', 'IVZ', 'J', 'JBHT',
+        'JBL', 'JCI', 'JKHY', 'JNJ', 'JNPR', 'JPM', 'K', 'KDP', 'KEY', 'KEYS',
+        'KHC', 'KIM', 'KKR', 'KLAC', 'KMB', 'KMI', 'KMX', 'KO', 'KR', 'KVUE',
+        'L', 'LDOS', 'LEN', 'LH', 'LHX', 'LIN', 'LKQ', 'LLY', 'LMT', 'LNT',
+        'LOW', 'LRCX', 'LULU', 'LUV', 'LVS', 'LW', 'LYB', 'LYV', 'MA', 'MAA',
+        'MAR', 'MAS', 'MCD', 'MCHP', 'MCK', 'MCO', 'MDLZ', 'MDT', 'MET', 'META',
+        'MGM', 'MHK', 'MKC', 'MKTX', 'MLM', 'MMC', 'MMM', 'MNST', 'MO', 'MOH',
+        'MOS', 'MPC', 'MPWR', 'MRK', 'MRNA', 'MRO', 'MS', 'MSCI', 'MSFT', 'MSI',
+        'MTB', 'MTCH', 'MTD', 'MU', 'NCLH', 'NDAQ', 'NDSN', 'NEE', 'NEM', 'NFLX',
+        'NI', 'NKE', 'NOC', 'NOW', 'NRG', 'NSC', 'NTAP', 'NTRS', 'NUE', 'NVDA',
+        'NVR', 'NWS', 'NWSA', 'NXPI', 'O', 'ODFL', 'OKE', 'OMC', 'ON', 'ORCL',
+        'ORLY', 'OTIS', 'OXY', 'PANW', 'PARA', 'PAYC', 'PAYX', 'PCAR', 'PCG', 'PEG',
+        'PEP', 'PFE', 'PFG', 'PG', 'PGR', 'PH', 'PHM', 'PKG', 'PLD', 'PM',
+        'PNC', 'PNR', 'PNW', 'PODD', 'POOL', 'PPG', 'PPL', 'PRU', 'PSA', 'PSX',
+        'PTC', 'PWR', 'PYPL', 'QCOM', 'QRVO', 'RCL', 'REG', 'REGN', 'RF', 'RJF',
+        'RL', 'RMD', 'ROK', 'ROL', 'ROP', 'ROST', 'RSG', 'RTX', 'RVTY', 'SBAC',
+        'SBUX', 'SCHW', 'SHW', 'SJM', 'SLB', 'SMCI', 'SNA', 'SNPS', 'SO', 'SOLV',
+        'SPG', 'SPGI', 'SRE', 'STE', 'STLD', 'STT', 'STX', 'STZ', 'SWK', 'SWKS',
+        'SYF', 'SYK', 'SYY', 'T', 'TAP', 'TDG', 'TDY', 'TECH', 'TEL', 'TER',
+        'TFC', 'TFX', 'TGT', 'TJX', 'TMO', 'TMUS', 'TPR', 'TRGP', 'TRMB', 'TROW',
+        'TRV', 'TSCO', 'TSLA', 'TSN', 'TT', 'TTWO', 'TXN', 'TXT', 'TYL', 'UAL',
+        'UBER', 'UDR', 'UHS', 'ULTA', 'UNH', 'UNP', 'UPS', 'URI', 'USB', 'V',
+        'VFC', 'VICI', 'VLO', 'VLTO', 'VMC', 'VRSK', 'VRSN', 'VRTX', 'VST', 'VTR',
+        'VTRS', 'VZ', 'WAB', 'WAT', 'WBA', 'WBD', 'WDC', 'WEC', 'WELL', 'WFC',
+        'WM', 'WMB', 'WMT', 'WRB', 'WST', 'WTW', 'WY', 'WYNN', 'XEL', 'XOM',
+        'XYL', 'YUM', 'ZBH', 'ZBRA', 'ZTS'
+    ]
+
+
+def compute_breadth_pct_below_200ma(ticker_data_dict, target_df):
+    """
+    Compute the percentage of stocks below their 200-day moving average.
+    Returns a DataFrame aligned to target_df dates with pct_below_200ma column.
+    """
+    # First, compute 200 DMA for each stock
+    stock_below_200ma = {}
+
+    for ticker, df in ticker_data_dict.items():
+        if len(df) < 200:
+            continue
+        df = df.copy()
+        df['sma_200'] = df['close'].rolling(window=200).mean()
+        df['below_200ma'] = df['close'] < df['sma_200']
+        stock_below_200ma[ticker] = df['below_200ma']
+
+    if not stock_below_200ma:
+        return pd.DataFrame()
+
+    # Combine all into a single DataFrame
+    combined = pd.DataFrame(stock_below_200ma)
+
+    # For each date, compute % of stocks below 200 DMA
+    breadth_series = combined.sum(axis=1) / combined.count(axis=1) * 100
+
+    breadth_df = pd.DataFrame({'pct_below_200ma': breadth_series})
+
+    # Align to target_df dates
+    breadth_df = breadth_df.reindex(target_df.index, method='ffill')
+
+    return breadth_df
+
+
+def find_breadth_below_threshold_events(breadth_df, params):
+    """
+    Find dates where % of stocks below 200 DMA falls at or below threshold.
+    Triggers when breadth drops to or below the threshold from above.
+    """
+    threshold = params.get('breadth_threshold', 30)  # Default 30%
+
+    events = []
+
+    pct_col = breadth_df['pct_below_200ma']
+
+    for i in range(1, len(breadth_df)):
+        date = breadth_df.index[i]
+        current_pct = pct_col.iloc[i]
+        prev_pct = pct_col.iloc[i-1]
+
+        if pd.isna(current_pct) or pd.isna(prev_pct):
+            continue
+
+        # Trigger when crossing at or below threshold from above
+        if prev_pct > threshold and current_pct <= threshold:
+            if not events or (date - events[-1]).days > 5:
+                events.append(date)
+
+    return events
+
+
 def bars_to_dataframe(bars):
     """Convert Polygon bars to pandas DataFrame"""
     if not bars:
@@ -226,17 +344,9 @@ def find_rsi_crossover_events(condition_dfs, params, api_key, ticker, start_date
 
     df = condition_dfs[0].copy()
 
-    # Try to fetch RSI from API first
-    rsi_data = fetch_rsi(ticker, start_date, end_date, period, api_key)
-
-    if rsi_data:
-        rsi_df = pd.DataFrame(rsi_data)
-        rsi_df['date'] = pd.to_datetime(rsi_df['timestamp'], unit='ms')
-        rsi_df = rsi_df.set_index('date')
-        df['rsi'] = rsi_df['value']
-    else:
-        # Compute manually
-        df['rsi'] = compute_rsi(df, period)
+    # Always use manual RSI calculation for consistency
+    # (Polygon API uses different formula that gives different values)
+    df['rsi'] = compute_rsi(df, period)
 
     events = []
 
@@ -471,12 +581,18 @@ def fetch_data():
         end_date = data.get('end_date', datetime.now().strftime('%Y-%m-%d'))
         condition_type = data.get('condition_type', 'dual_ath')
         condition_params = data.get('condition_params', {})
+        # Also check for top-level params (for backwards compatibility with discovery tool)
+        for key in ['rsi_period', 'rsi_threshold', 'momentum_period', 'momentum_threshold',
+                    'ma_short', 'ma_long', 'days_gap', 'breadth_threshold']:
+            if key in data and key not in condition_params:
+                condition_params[key] = data[key]
         api_key = data.get('api_key', '')
 
         if not api_key:
             return jsonify({'error': 'Polygon API key is required'}), 400
 
-        if not condition_tickers:
+        # S&P 500 breadth condition doesn't require condition tickers
+        if not condition_tickers and condition_type != 'sp500_pct_below_200ma':
             return jsonify({'error': 'At least one condition ticker is required'}), 400
 
         # Fetch data for all tickers
@@ -526,6 +642,59 @@ def fetch_data():
         elif condition_type == 'momentum_below':
             condition_params['momentum_threshold'] = -abs(condition_params.get('momentum_threshold', 0.05))
             event_dates = find_momentum_events(condition_dfs, condition_params)
+        elif condition_type == 'sp500_pct_below_200ma':
+            # Fetch data for all S&P 500 constituents
+            sp500_tickers = get_sp500_constituents()
+            sp500_data = {}
+            failed_tickers = []
+            rate_limit_hits = 0
+
+            # Fetch data for each constituent with rate limiting
+            # Polygon free tier: 5 calls/min, paid plans: much higher
+            # Using 0.25s delay as baseline (240 calls/min for paid plans)
+            for i, ticker in enumerate(sp500_tickers):
+                try:
+                    bars = fetch_aggregate_bars(ticker, start_date, end_date, api_key)
+                    if bars:
+                        sp500_data[ticker] = bars_to_dataframe(bars)
+                    # Small delay to avoid rate limiting
+                    time.sleep(0.25)
+                except Exception as e:
+                    error_str = str(e).lower()
+                    if 'rate' in error_str or '429' in error_str:
+                        rate_limit_hits += 1
+                        # If we hit rate limit, wait longer and retry once
+                        time.sleep(12)  # Wait 12 seconds for free tier
+                        try:
+                            bars = fetch_aggregate_bars(ticker, start_date, end_date, api_key)
+                            if bars:
+                                sp500_data[ticker] = bars_to_dataframe(bars)
+                        except Exception:
+                            failed_tickers.append(ticker)
+                    else:
+                        failed_tickers.append(ticker)
+                    continue
+
+                # Progress logging every 50 stocks
+                if (i + 1) % 50 == 0:
+                    print(f"Fetched {i + 1}/{len(sp500_tickers)} S&P 500 stocks...")
+
+            print(f"Successfully fetched {len(sp500_data)} stocks, {len(failed_tickers)} failed")
+
+            if len(sp500_data) < 50:
+                error_msg = f'Could not fetch enough S&P 500 data. Only got {len(sp500_data)} stocks.'
+                if rate_limit_hits > 0:
+                    error_msg += f' Hit rate limit {rate_limit_hits} times. Consider using a paid Polygon.io plan for this feature.'
+                return jsonify({'error': error_msg}), 400
+
+            # Compute breadth
+            breadth_df = compute_breadth_pct_below_200ma(sp500_data, target_df)
+
+            if breadth_df.empty:
+                return jsonify({'error': 'Could not compute breadth data'}), 400
+
+            # Find events
+            event_dates = find_breadth_below_threshold_events(breadth_df, condition_params)
         else:
             return jsonify({'error': f'Unknown condition type: {condition_type}'}), 400
 
@@ -589,6 +758,36 @@ def get_condition_types():
 def health_check():
     """Health check endpoint"""
     return jsonify({'status': 'healthy'})
+
+
+@app.route('/api/discovered_triggers', methods=['GET'])
+def get_discovered_triggers():
+    """Get triggers discovered by CriteriaTriggerDiscovery agent"""
+    import json
+    from pathlib import Path
+
+    triggers_file = Path(__file__).parent / "discovered_triggers" / "triggers.json"
+
+    if not triggers_file.exists():
+        return jsonify({
+            'status': 'no_data',
+            'message': 'No discovered triggers yet. Run CriteriaTriggerDiscovery to find triggers.',
+            'triggers': []
+        })
+
+    try:
+        with open(triggers_file) as f:
+            data = json.load(f)
+        return jsonify({
+            'status': 'ok',
+            **data
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'triggers': []
+        }), 500
 
 
 if __name__ == '__main__':

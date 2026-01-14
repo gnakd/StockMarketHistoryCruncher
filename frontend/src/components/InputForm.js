@@ -8,7 +8,8 @@ const CONDITION_TYPES = [
   { value: 'ma_crossover', label: 'MA Golden Cross', description: 'Short MA crosses above long MA' },
   { value: 'ma_crossunder', label: 'MA Death Cross', description: 'Short MA crosses below long MA' },
   { value: 'momentum_above', label: 'Momentum Above', description: 'Momentum crosses above threshold' },
-  { value: 'momentum_below', label: 'Momentum Below', description: 'Momentum crosses below threshold' }
+  { value: 'momentum_below', label: 'Momentum Below', description: 'Momentum crosses below threshold' },
+  { value: 'sp500_pct_below_200ma', label: 'S&P 500 % Below 200 DMA', description: '% of S&P 500 stocks below 200-day MA drops to threshold' }
 ];
 
 const DEFAULT_PARAMS = {
@@ -19,20 +20,43 @@ const DEFAULT_PARAMS = {
   ma_crossover: { ma_short: 50, ma_long: 200 },
   ma_crossunder: { ma_short: 50, ma_long: 200 },
   momentum_above: { momentum_period: 12, momentum_threshold: 0.05 },
-  momentum_below: { momentum_period: 12, momentum_threshold: -0.05 }
+  momentum_below: { momentum_period: 12, momentum_threshold: -0.05 },
+  sp500_pct_below_200ma: { breadth_threshold: 30 }
 };
 
-function InputForm({ onSubmit, loading }) {
+function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied }) {
   const [conditionTickers, setConditionTickers] = useState(['^DJI', '^DJT']);
   const [targetTicker, setTargetTicker] = useState('^GSPC');
-  const [startDate, setStartDate] = useState('1990-01-01');
+  const [startDate, setStartDate] = useState('2024-01-15');
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [conditionType, setConditionType] = useState('dual_ath');
   const [conditionParams, setConditionParams] = useState(DEFAULT_PARAMS.dual_ath);
   const [apiKey, setApiKey] = useState('');
   const [tickerInput, setTickerInput] = useState('');
 
+  // Track if we just applied a trigger to prevent param reset
+  const [triggerApplied, setTriggerApplied] = React.useState(false);
+
+  // Apply selected trigger from DiscoveredTriggers component
   useEffect(() => {
+    if (selectedTrigger) {
+      setTriggerApplied(true);
+      setConditionTickers(selectedTrigger.condition_tickers || []);
+      setTargetTicker(selectedTrigger.target_ticker || 'SPY');
+      setConditionType(selectedTrigger.condition_type || 'rsi_below');
+      setConditionParams(selectedTrigger.condition_params || {});
+      if (onTriggerApplied) {
+        onTriggerApplied();
+      }
+    }
+  }, [selectedTrigger, onTriggerApplied]);
+
+  useEffect(() => {
+    // Only reset params when condition type changes manually (not from trigger)
+    if (triggerApplied) {
+      setTriggerApplied(false);
+      return;
+    }
     setConditionParams(DEFAULT_PARAMS[conditionType] || {});
   }, [conditionType]);
 
@@ -166,6 +190,23 @@ function InputForm({ onSubmit, loading }) {
           </>
         );
 
+      case 'sp500_pct_below_200ma':
+        return (
+          <div className="col-md-4">
+            <label className="form-label">% Below 200 DMA Threshold</label>
+            <input
+              type="number"
+              className="form-control"
+              value={conditionParams.breadth_threshold || 30}
+              onChange={(e) => handleParamChange('breadth_threshold', e.target.value)}
+              min="0"
+              max="100"
+              step="1"
+            />
+            <small className="text-muted">Triggers when % drops at or below this value</small>
+          </div>
+        );
+
       default:
         return null;
     }
@@ -174,43 +215,52 @@ function InputForm({ onSubmit, loading }) {
   return (
     <form onSubmit={handleSubmit}>
       <div className="row g-3">
-        {/* Condition Tickers */}
-        <div className="col-md-6">
-          <label className="form-label">Condition Tickers</label>
-          <div className="input-group mb-2">
-            <input
-              type="text"
-              className="form-control"
-              placeholder="Add ticker (e.g., ^DJI)"
-              value={tickerInput}
-              onChange={(e) => setTickerInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTicker())}
-            />
-            <button
-              type="button"
-              className="btn btn-outline-secondary"
-              onClick={handleAddTicker}
-            >
-              Add
-            </button>
+        {/* Condition Tickers - hidden for S&P 500 breadth condition */}
+        {conditionType !== 'sp500_pct_below_200ma' ? (
+          <div className="col-md-6">
+            <label className="form-label">Condition Tickers</label>
+            <div className="input-group mb-2">
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Add ticker (e.g., ^DJI)"
+                value={tickerInput}
+                onChange={(e) => setTickerInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTicker())}
+              />
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={handleAddTicker}
+              >
+                Add
+              </button>
+            </div>
+            <div className="d-flex flex-wrap gap-1">
+              {conditionTickers.map((ticker, idx) => (
+                <span key={idx} className="badge bg-primary d-flex align-items-center">
+                  {ticker}
+                  <button
+                    type="button"
+                    className="btn-close btn-close-white ms-1"
+                    style={{ fontSize: '0.6rem' }}
+                    onClick={() => handleRemoveTicker(ticker)}
+                  />
+                </span>
+              ))}
+            </div>
+            <small className="text-muted">
+              {conditionType === 'dual_ath' ? 'Add at least 2 tickers for dual ATH' : 'First ticker will be used for condition'}
+            </small>
           </div>
-          <div className="d-flex flex-wrap gap-1">
-            {conditionTickers.map((ticker, idx) => (
-              <span key={idx} className="badge bg-primary d-flex align-items-center">
-                {ticker}
-                <button
-                  type="button"
-                  className="btn-close btn-close-white ms-1"
-                  style={{ fontSize: '0.6rem' }}
-                  onClick={() => handleRemoveTicker(ticker)}
-                />
-              </span>
-            ))}
+        ) : (
+          <div className="col-md-6">
+            <label className="form-label">Condition Tickers</label>
+            <div className="alert alert-info mb-0 py-2">
+              <small>This condition automatically uses all S&P 500 constituents. No condition tickers needed.</small>
+            </div>
           </div>
-          <small className="text-muted">
-            {conditionType === 'dual_ath' ? 'Add at least 2 tickers for dual ATH' : 'First ticker will be used for condition'}
-          </small>
-        </div>
+        )}
 
         {/* Target Ticker */}
         <div className="col-md-6">
@@ -289,7 +339,7 @@ function InputForm({ onSubmit, loading }) {
           <button
             type="submit"
             className="btn btn-analyze btn-lg"
-            disabled={loading || conditionTickers.length === 0}
+            disabled={loading || (conditionTickers.length === 0 && conditionType !== 'sp500_pct_below_200ma')}
           >
             {loading ? (
               <>
