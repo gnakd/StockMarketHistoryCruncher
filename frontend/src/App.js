@@ -4,6 +4,8 @@ import InputForm from './components/InputForm';
 import HistoricalChart from './components/HistoricalChart';
 import ForwardReturnsChart from './components/ForwardReturnsChart';
 import ResultsTable from './components/ResultsTable';
+import DiscoveredTriggers from './components/DiscoveredTriggers';
+import RecentTriggers from './components/RecentTriggers';
 import { exportToCSV } from './utils/export';
 
 function App() {
@@ -11,6 +13,7 @@ function App() {
   const [error, setError] = useState(null);
   const [results, setResults] = useState(null);
   const [formData, setFormData] = useState(null);
+  const [selectedTrigger, setSelectedTrigger] = useState(null);
 
   const handleSubmit = useCallback(async (data) => {
     setLoading(true);
@@ -35,6 +38,13 @@ function App() {
     }
   }, [results, formData]);
 
+  const handleSelectTrigger = useCallback((trigger) => {
+    setSelectedTrigger(trigger);
+    // Clear previous results when selecting a new trigger
+    setResults(null);
+    setError(null);
+  }, []);
+
   const generateTitle = () => {
     if (!formData) return 'Stock Market History Cruncher';
 
@@ -47,7 +57,8 @@ function App() {
       'ma_crossover': `${condition_params.ma_short || 50}MA crosses above ${condition_params.ma_long || 200}MA on ${condition_tickers[0]}`,
       'ma_crossunder': `${condition_params.ma_short || 50}MA crosses below ${condition_params.ma_long || 200}MA on ${condition_tickers[0]}`,
       'momentum_above': `Momentum > ${(condition_params.momentum_threshold || 0.05) * 100}% on ${condition_tickers[0]}`,
-      'momentum_below': `Momentum < ${(condition_params.momentum_threshold || -0.05) * 100}% on ${condition_tickers[0]}`
+      'momentum_below': `Momentum < ${(condition_params.momentum_threshold || -0.05) * 100}% on ${condition_tickers[0]}`,
+      'sp500_pct_below_200ma': `S&P 500 % below 200 DMA drops to ≤${condition_params.breadth_threshold || 30}%`
     };
 
     return `${target_ticker}: ${conditionNames[condition_type] || condition_type}`;
@@ -64,13 +75,24 @@ function App() {
       </div>
 
       <div className="container pb-5">
+        {/* Recent Triggers - criteria that fired in the past 30 days */}
+        <RecentTriggers onSelectTrigger={handleSelectTrigger} />
+
+        {/* All Discovered Triggers */}
+        <DiscoveredTriggers onSelectTrigger={handleSelectTrigger} />
+
         {/* Input Form */}
         <div className="card">
           <div className="card-header">
             <h5 className="mb-0">Analysis Parameters</h5>
           </div>
           <div className="card-body">
-            <InputForm onSubmit={handleSubmit} loading={loading} />
+            <InputForm
+              onSubmit={handleSubmit}
+              loading={loading}
+              selectedTrigger={selectedTrigger}
+              onTriggerApplied={() => setSelectedTrigger(null)}
+            />
           </div>
         </div>
 
