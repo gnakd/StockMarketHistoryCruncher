@@ -3,12 +3,20 @@ from flask_cors import CORS
 import requests
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import time
+import logging
 from config import Config
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)
+
+# Global cache manager instance (lazy initialized)
+_cache_manager = None
 
 # Polygon.io base URL
 POLYGON_BASE_URL = "https://api.polygon.io"
@@ -40,6 +48,69 @@ def fetch_aggregate_bars(ticker, start_date, end_date, api_key):
             params = {'apiKey': api_key}
 
     return all_results
+
+
+def get_cache_manager(api_key: str):
+    """Get or create the global cache manager instance."""
+    global _cache_manager
+    if _cache_manager is None or _cache_manager.api_key != api_key:
+        from cache.manager import CacheManager
+        _cache_manager = CacheManager(api_key, fetch_func=fetch_aggregate_bars)
+    return _cache_manager
+
+
+def dataframe_to_polygon_format(df: pd.DataFrame) -> list:
+    """Convert a DataFrame back to Polygon-style dict list."""
+    if df.empty:
+        return []
+
+    result = []
+    for idx, row in df.iterrows():
+        bar = {
+            't': int(idx.timestamp() * 1000),  # milliseconds
+            'o': row['open'],
+            'h': row['high'],
+            'l': row['low'],
+            'c': row['close'],
+            'v': int(row['volume']) if pd.notna(row['volume']) else 0
+        }
+        result.append(bar)
+    return result
+
+
+def fetch_aggregate_bars_cached(
+    ticker: str,
+    start_date: str,
+    end_date: str,
+    api_key: str,
+    use_cache: bool = True
+) -> list:
+    """
+    Fetch daily aggregate bars, using cache when available.
+
+    This wraps the original fetch_aggregate_bars to add caching.
+
+    Args:
+        ticker: Stock symbol
+        start_date: Start date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format
+        api_key: Polygon.io API key
+        use_cache: If False, bypass cache and fetch directly from API
+
+    Returns:
+        List of bar dicts in Polygon format
+    """
+    if not use_cache or not Config.CACHE_ENABLED:
+        return fetch_aggregate_bars(ticker, start_date, end_date, api_key)
+
+    cache = get_cache_manager(api_key)
+    df = cache.get_bars(
+        ticker,
+        date.fromisoformat(start_date),
+        date.fromisoformat(end_date)
+    )
+
+    return dataframe_to_polygon_format(df)
 
 
 def fetch_rsi(ticker, start_date, end_date, window, api_key):
@@ -600,7 +671,7 @@ def fetch_data():
         ticker_data = {}
 
         for ticker in all_tickers:
-            bars = fetch_aggregate_bars(ticker, start_date, end_date, api_key)
+            bars = fetch_aggregate_bars_cached(ticker, start_date, end_date, api_key)
             if not bars:
                 return jsonify({'error': f'No data found for {ticker}'}), 400
             ticker_data[ticker] = bars_to_dataframe(bars)
@@ -650,15 +721,12 @@ def fetch_data():
             rate_limit_hits = 0
 
             # Fetch data for each constituent with rate limiting
-            # Polygon free tier: 5 calls/min, paid plans: much higher
-            # Using 0.25s delay as baseline (240 calls/min for paid plans)
+            # Cache manager handles rate limiting, but we still handle errors
             for i, ticker in enumerate(sp500_tickers):
                 try:
-                    bars = fetch_aggregate_bars(ticker, start_date, end_date, api_key)
+                    bars = fetch_aggregate_bars_cached(ticker, start_date, end_date, api_key)
                     if bars:
                         sp500_data[ticker] = bars_to_dataframe(bars)
-                    # Small delay to avoid rate limiting
-                    time.sleep(0.25)
                 except Exception as e:
                     error_str = str(e).lower()
                     if 'rate' in error_str or '429' in error_str:
@@ -666,7 +734,7 @@ def fetch_data():
                         # If we hit rate limit, wait longer and retry once
                         time.sleep(12)  # Wait 12 seconds for free tier
                         try:
-                            bars = fetch_aggregate_bars(ticker, start_date, end_date, api_key)
+                            bars = fetch_aggregate_bars_cached(ticker, start_date, end_date, api_key)
                             if bars:
                                 sp500_data[ticker] = bars_to_dataframe(bars)
                         except Exception:
@@ -677,7 +745,7 @@ def fetch_data():
 
                 # Progress logging every 50 stocks
                 if (i + 1) % 50 == 0:
-                    print(f"Fetched {i + 1}/{len(sp500_tickers)} S&P 500 stocks...")
+                    logger.info(f"Fetched {i + 1}/{len(sp500_tickers)} S&P 500 stocks...")
 
             print(f"Successfully fetched {len(sp500_data)} stocks, {len(failed_tickers)} failed")
 
@@ -790,5 +858,115 @@ def get_discovered_triggers():
         }), 500
 
 
+@app.route('/api/cache/status', methods=['GET'])
+def cache_status():
+    """Get cache statistics and status."""
+    from cache.db import get_db_stats
+
+    ticker = request.args.get('ticker')
+
+    if ticker:
+        # Get status for specific ticker
+        api_key = request.args.get('api_key', Config.POLYGON_API_KEY)
+        if not api_key:
+            return jsonify({'error': 'API key required for ticker status'}), 400
+
+        cache = get_cache_manager(api_key)
+        status = cache.get_cache_status(ticker.upper())
+
+        if status is None:
+            return jsonify({
+                'ticker': ticker.upper(),
+                'cached': False,
+                'message': 'No cached data for this ticker'
+            })
+
+        return jsonify({
+            'ticker': ticker.upper(),
+            'cached': True,
+            **status
+        })
+
+    # General stats
+    stats = get_db_stats()
+    return jsonify({
+        'cache_enabled': Config.CACHE_ENABLED,
+        **stats
+    })
+
+
+@app.route('/api/cache/invalidate', methods=['POST'])
+def invalidate_cache():
+    """Invalidate (clear) cache for a specific ticker."""
+    data = request.get_json()
+    api_key = data.get('api_key', Config.POLYGON_API_KEY)
+    ticker = data.get('ticker')
+
+    if not ticker:
+        return jsonify({'error': 'ticker is required'}), 400
+
+    if not api_key:
+        return jsonify({'error': 'API key required'}), 400
+
+    cache = get_cache_manager(api_key)
+    count = cache.invalidate_ticker(ticker.upper())
+
+    return jsonify({
+        'success': True,
+        'ticker': ticker.upper(),
+        'bars_removed': count
+    })
+
+
+@app.route('/api/cache/sp500/start', methods=['POST'])
+def start_sp500_cache():
+    """Start S&P 500 caching job in background."""
+    from cache.sp500_cacher import start_sp500_cache_job
+
+    data = request.get_json() or {}
+    api_key = data.get('api_key', Config.POLYGON_API_KEY)
+
+    if not api_key:
+        return jsonify({'error': 'API key required'}), 400
+
+    start_date = data.get('start_date', '1990-01-01')
+    end_date = data.get('end_date')  # None means today
+
+    result = start_sp500_cache_job(api_key, start_date, end_date)
+
+    if result['status'] == 'already_running':
+        return jsonify(result), 409  # Conflict
+
+    return jsonify(result)
+
+
+@app.route('/api/cache/sp500/status', methods=['GET'])
+def sp500_cache_status():
+    """Get status of S&P 500 caching job and coverage."""
+    from cache.sp500_cacher import get_job_status, SP500Cacher, get_sp500_constituents
+
+    job_id = request.args.get('job_id', type=int)
+
+    # Get job status
+    job_status = get_job_status(job_id)
+
+    # Get coverage status
+    api_key = request.args.get('api_key', Config.POLYGON_API_KEY)
+    if api_key:
+        cache = get_cache_manager(api_key)
+        cacher = SP500Cacher(cache)
+        coverage = cacher.get_caching_status()
+    else:
+        coverage = {'message': 'API key required for coverage stats'}
+
+    return jsonify({
+        'job': job_status,
+        'coverage': coverage
+    })
+
+
 if __name__ == '__main__':
+    # Initialize database on startup
+    from cache.db import init_db
+    init_db()
     app.run(debug=Config.DEBUG, port=5000)

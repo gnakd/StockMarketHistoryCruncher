@@ -38,3 +38,7 @@ htmlcov/
 # Logs
 *.log
 logs/
+
+# Cache database
+backend/data/price_cache.db
+backend/data/*.db

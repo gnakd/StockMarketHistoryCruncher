@@ -1,0 +1,2 @@
+# This directory contains the SQLite price cache database
+# The database file (price_cache.db) is generated automatically and should not be committed
