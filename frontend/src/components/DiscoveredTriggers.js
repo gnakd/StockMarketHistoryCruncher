@@ -1,16 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-function DiscoveredTriggers({ onSelectTrigger }) {
+function DiscoveredTriggers({ onSelectTrigger, apiKey }) {
   const [triggers, setTriggers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [metadata, setMetadata] = useState(null);
+  const [dataRange, setDataRange] = useState(null);
   const [expanded, setExpanded] = useState(true);
 
   useEffect(() => {
     fetchTriggers();
-  }, []);
+    fetchDataRange();
+  }, [apiKey]);
+
+  // Auto-refresh trigger activity on initial load
+  useEffect(() => {
+    if (triggers.length > 0 && apiKey && !metadata?.activity_refreshed_at) {
+      refreshTriggerActivity();
+    }
+  }, [triggers.length, apiKey]);
 
   const fetchTriggers = async () => {
     setLoading(true);
@@ -20,9 +30,14 @@ function DiscoveredTriggers({ onSelectTrigger }) {
         setTriggers(response.data.triggers || []);
         setMetadata({
           updated_at: response.data.updated_at,
+          activity_refreshed_at: response.data.activity_refreshed_at,
           total_tested: response.data.total_tested,
           total_valid: response.data.total_valid,
+          total_passed_filters: response.data.total_passed_filters,
           date_range: response.data.date_range,
+          scoring_mode: response.data.scoring_mode,
+          filter_thresholds: response.data.filter_thresholds,
+          filter_stats: response.data.filter_stats,
         });
       } else {
         setTriggers([]);
@@ -33,6 +48,43 @@ function DiscoveredTriggers({ onSelectTrigger }) {
       setTriggers([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchDataRange = async () => {
+    try {
+      const params = apiKey ? { api_key: apiKey } : {};
+      const response = await axios.get('/api/data_range', { params });
+      if (response.data.status === 'ok') {
+        setDataRange(response.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch data range:', err);
+    }
+  };
+
+  const refreshTriggerActivity = async () => {
+    if (!apiKey) {
+      setError('API key required to refresh trigger activity');
+      return;
+    }
+    setRefreshing(true);
+    try {
+      const response = await axios.post('/api/triggers/refresh', { api_key: apiKey });
+      if (response.data.status === 'ok') {
+        setTriggers(response.data.triggers || []);
+        setMetadata(prev => ({
+          ...prev,
+          activity_refreshed_at: response.data.refreshed_at,
+        }));
+        setError(null);
+      } else {
+        setError(response.data.error || 'Failed to refresh');
+      }
+    } catch (err) {
+      setError('Failed to refresh trigger activity: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -138,65 +190,133 @@ function DiscoveredTriggers({ onSelectTrigger }) {
             </div>
           ) : (
             <>
-              {metadata && (
+              {(metadata || dataRange) && (
                 <div className="px-3 py-2 bg-light border-bottom small">
-                  <span className="text-muted">
-                    Last updated: {new Date(metadata.updated_at).toLocaleString()} |
-                    Tested: {metadata.total_tested} | Valid: {metadata.total_valid} |
-                    Range: {metadata.date_range?.start} to {metadata.date_range?.end}
-                  </span>
+                  <div className="d-flex justify-content-between align-items-center flex-wrap">
+                    <div>
+                      <span className="text-muted">
+                        {metadata && (
+                          <>
+                            Discovery: {new Date(metadata.updated_at).toLocaleDateString()} |
+                            Tested: {metadata.total_tested} | Valid: {metadata.total_valid}
+                            {metadata.total_passed_filters !== undefined && (
+                              <> | Passed: {metadata.total_passed_filters}</>
+                            )}
+                          </>
+                        )}
+                      </span>
+                      {metadata?.scoring_mode && (
+                        <span className="ms-2 badge bg-primary">{metadata.scoring_mode}</span>
+                      )}
+                      {dataRange?.overall && (
+                        <span className="ms-2 badge bg-info">
+                          Data: {dataRange.overall.first_date} to {dataRange.overall.last_date}
+                        </span>
+                      )}
+                      {metadata?.activity_refreshed_at && (
+                        <span className="ms-2 text-success small">
+                          Activity updated: {new Date(metadata.activity_refreshed_at).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      className="btn btn-sm btn-outline-primary"
+                      onClick={(e) => { e.stopPropagation(); refreshTriggerActivity(); }}
+                      disabled={refreshing || !apiKey}
+                      title={!apiKey ? 'Enter API key to refresh' : 'Refresh recent trigger activity'}
+                    >
+                      {refreshing ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                          Refreshing...
+                        </>
+                      ) : (
+                        'Refresh Activity'
+                      )}
+                    </button>
+                  </div>
+                  {metadata?.filter_thresholds && (
+                    <div className="mt-1 text-muted" style={{ fontSize: '0.75rem' }}>
+                      Filters: Win Rate ≥{(metadata.filter_thresholds.min_win_rate * 100).toFixed(0)}% |
+                      Max Drawdown ≥{metadata.filter_thresholds.max_drawdown}% |
+                      Min Events ≥{metadata.filter_thresholds.min_events}
+                    </div>
+                  )}
                 </div>
               )}
               <div className="table-responsive" style={{ maxHeight: '300px', overflowY: 'auto' }}>
                 <table className="table table-hover table-sm mb-0">
                   <thead className="sticky-top bg-white">
                     <tr>
-                      <th style={{ width: '50px' }}>Rank</th>
-                      <th style={{ width: '60px' }}>Score</th>
+                      <th style={{ width: '45px' }}>Rank</th>
+                      <th style={{ width: '55px' }}>Score</th>
+                      <th style={{ width: '70px' }}>Type</th>
                       <th>Criteria</th>
-                      <th style={{ width: '70px' }}>Events</th>
-                      <th style={{ width: '80px' }}>Avg Ret</th>
-                      <th style={{ width: '70px' }}>Win %</th>
-                      <th style={{ width: '65px' }}>Recent</th>
-                      <th style={{ width: '90px' }}>Latest</th>
-                      <th style={{ width: '80px' }}>Action</th>
+                      <th style={{ width: '60px' }}>Events</th>
+                      <th style={{ width: '70px' }}>Avg Ret</th>
+                      <th style={{ width: '70px' }}>Avg WR</th>
+                      <th style={{ width: '65px' }}>Max DD</th>
+                      <th style={{ width: '55px' }}>Recent</th>
+                      <th style={{ width: '85px' }}>Latest</th>
+                      <th style={{ width: '60px' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {triggers.map((trigger, idx) => (
-                      <tr key={idx}>
-                        <td className="text-muted">{idx + 1}</td>
-                        <td>
-                          <span className={`badge ${trigger.score >= 70 ? 'bg-success' : trigger.score >= 50 ? 'bg-warning' : 'bg-secondary'}`}>
-                            {formatScore(trigger.score)}
-                          </span>
-                        </td>
-                        <td className="small">{getCriteriaDescription(trigger.criteria)}</td>
-                        <td>{trigger.event_count}</td>
-                        <td className={trigger.avg_return_1y > 0 ? 'text-success' : trigger.avg_return_1y < 0 ? 'text-danger' : ''}>
-                          {formatPercent(trigger.avg_return_1y)}
-                        </td>
-                        <td>{formatPercent(trigger.win_rate_1y)}</td>
-                        <td>
-                          {trigger.recent_trigger_count > 0 ? (
-                            <span className="badge bg-info">{trigger.recent_trigger_count}</span>
-                          ) : (
-                            <span className="text-muted">0</span>
-                          )}
-                        </td>
-                        <td className="small">
-                          {trigger.latest_trigger_date || 'N/A'}
-                        </td>
-                        <td>
-                          <button
-                            className="btn btn-sm btn-primary"
-                            onClick={() => handleSelectTrigger(trigger)}
-                          >
-                            Use
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {triggers.map((trigger, idx) => {
+                      // Support both old format (avg_return_1y) and new format (avg_return)
+                      const avgReturn = trigger.avg_return ?? trigger.avg_return_1y;
+                      const avgWinRate = trigger.avg_win_rate ?? trigger.win_rate_1y;
+                      const maxDrawdown = trigger.max_drawdown;
+
+                      return (
+                        <tr key={idx}>
+                          <td className="text-muted">{idx + 1}</td>
+                          <td>
+                            <span className={`badge ${trigger.score >= 70 ? 'bg-success' : trigger.score >= 50 ? 'bg-warning' : 'bg-secondary'}`}>
+                              {formatScore(trigger.score)}
+                            </span>
+                          </td>
+                          <td>
+                            {trigger.trigger_type ? (
+                              <span className={`badge ${trigger.is_long_term ? 'bg-success' : 'bg-info'}`} style={{ fontSize: '0.7rem' }}>
+                                {trigger.is_long_term ? 'Long' : 'Short'}
+                              </span>
+                            ) : (
+                              <span className="text-muted">-</span>
+                            )}
+                          </td>
+                          <td className="small">{getCriteriaDescription(trigger.criteria)}</td>
+                          <td>{trigger.event_count}</td>
+                          <td className={avgReturn > 0 ? 'text-success' : avgReturn < 0 ? 'text-danger' : ''}>
+                            {formatPercent(avgReturn)}
+                          </td>
+                          <td className={avgWinRate >= 0.7 ? 'text-success' : ''}>
+                            {formatPercent(avgWinRate)}
+                          </td>
+                          <td className={maxDrawdown !== undefined ? (maxDrawdown > -5 ? 'text-success' : maxDrawdown > -10 ? 'text-warning' : 'text-danger') : ''}>
+                            {maxDrawdown !== undefined ? `${maxDrawdown.toFixed(1)}%` : 'N/A'}
+                          </td>
+                          <td>
+                            {trigger.recent_trigger_count > 0 ? (
+                              <span className="badge bg-info">{trigger.recent_trigger_count}</span>
+                            ) : (
+                              <span className="text-muted">0</span>
+                            )}
+                          </td>
+                          <td className="small">
+                            {trigger.latest_trigger_date || 'N/A'}
+                          </td>
+                          <td>
+                            <button
+                              className="btn btn-sm btn-primary btn-xs"
+                              onClick={() => handleSelectTrigger(trigger)}
+                            >
+                              Use
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

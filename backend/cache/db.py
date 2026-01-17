@@ -125,6 +125,26 @@ def init_db(db_path: Path = None) -> None:
             )
         """)
 
+        # S&P 500 constituent list cache
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sp500_constituents (
+                ticker TEXT PRIMARY KEY,
+                company_name TEXT,
+                sector TEXT,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Track when the constituent list was last refreshed
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sp500_list_metadata (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                last_refreshed TIMESTAMP,
+                source TEXT,
+                ticker_count INTEGER
+            )
+        """)
+
         conn.commit()
         logger.info("Database schema initialized successfully")
 

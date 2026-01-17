@@ -11,9 +11,15 @@ from .manager import CacheManager
 
 logger = logging.getLogger(__name__)
 
+# Wikipedia URL for S&P 500 constituents
+SP500_WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 
-def get_sp500_constituents() -> List[str]:
-    """Return the full list of S&P 500 constituents."""
+# How often to refresh the constituent list (in days)
+SP500_LIST_REFRESH_DAYS = 7
+
+
+def _get_fallback_sp500_list() -> List[str]:
+    """Fallback static list if Wikipedia fetch fails."""
     return [
         'A', 'AAL', 'AAPL', 'ABBV', 'ABNB', 'ABT', 'ACGL', 'ACN', 'ADBE', 'ADI',
         'ADM', 'ADP', 'ADSK', 'AEE', 'AEP', 'AES', 'AFL', 'AIG', 'AIZ', 'AJG',
@@ -67,6 +73,259 @@ def get_sp500_constituents() -> List[str]:
         'WM', 'WMB', 'WMT', 'WRB', 'WST', 'WTW', 'WY', 'WYNN', 'XEL', 'XOM',
         'XYL', 'YUM', 'ZBH', 'ZBRA', 'ZTS'
     ]
+
+
+def fetch_sp500_from_wikipedia() -> List[Dict]:
+    """
+    Fetch current S&P 500 constituents from Wikipedia.
+
+    Returns:
+        List of dicts with 'ticker', 'company_name', 'sector' keys.
+        Returns empty list on failure.
+    """
+    try:
+        import pandas as pd
+        import requests
+        from io import StringIO
+    except ImportError as e:
+        logger.error(f"Missing dependency for Wikipedia fetching: {e}")
+        return []
+
+    try:
+        logger.info(f"Fetching S&P 500 constituents from Wikipedia...")
+
+        # Use requests with proper user agent to avoid 403
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        response = requests.get(SP500_WIKIPEDIA_URL, headers=headers, timeout=30)
+        response.raise_for_status()
+
+        tables = pd.read_html(StringIO(response.text))
+
+        # First table contains the constituents
+        df = tables[0]
+
+        # Find the symbol/ticker column (usually 'Symbol' or 'Ticker')
+        symbol_col = None
+        for col in df.columns:
+            if 'symbol' in str(col).lower() or 'ticker' in str(col).lower():
+                symbol_col = col
+                break
+
+        if symbol_col is None:
+            # Fallback: assume first column is the symbol
+            symbol_col = df.columns[0]
+            logger.warning(f"Could not find Symbol column, using: {symbol_col}")
+
+        # Find company name and sector columns
+        name_col = None
+        sector_col = None
+        for col in df.columns:
+            col_lower = str(col).lower()
+            if 'security' in col_lower or 'company' in col_lower or 'name' in col_lower:
+                name_col = col
+            if 'sector' in col_lower or 'gics' in col_lower:
+                sector_col = col
+
+        constituents = []
+        for _, row in df.iterrows():
+            ticker = str(row[symbol_col]).strip()
+            # Clean ticker: some have footnotes or extra characters
+            ticker = ticker.split('[')[0].strip()
+            # Replace '.' with '-' for Polygon compatibility (e.g., BRK.B -> BRK-B)
+            # Actually, keep as-is since Polygon uses '.' format
+            if ticker:
+                constituents.append({
+                    'ticker': ticker.upper(),
+                    'company_name': str(row[name_col]).strip() if name_col else None,
+                    'sector': str(row[sector_col]).strip() if sector_col else None,
+                })
+
+        logger.info(f"Fetched {len(constituents)} S&P 500 constituents from Wikipedia")
+        return constituents
+
+    except Exception as e:
+        logger.error(f"Failed to fetch S&P 500 from Wikipedia: {e}")
+        return []
+
+
+def get_sp500_list_metadata() -> Optional[Dict]:
+    """Get metadata about the cached S&P 500 list."""
+    init_db()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM sp500_list_metadata WHERE id = 1")
+        row = cursor.fetchone()
+        if row:
+            return {
+                'last_refreshed': row['last_refreshed'],
+                'source': row['source'],
+                'ticker_count': row['ticker_count'],
+            }
+        return None
+
+
+def get_cached_sp500_constituents() -> List[str]:
+    """Get S&P 500 tickers from local cache."""
+    init_db()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT ticker FROM sp500_constituents ORDER BY ticker")
+        return [row['ticker'] for row in cursor.fetchall()]
+
+
+def refresh_sp500_constituents(force: bool = False) -> Dict:
+    """
+    Refresh the S&P 500 constituent list from Wikipedia.
+
+    Args:
+        force: If True, refresh even if cache is fresh.
+
+    Returns:
+        Dict with 'success', 'ticker_count', 'added', 'removed' keys.
+    """
+    init_db()
+
+    # Check if refresh is needed
+    if not force:
+        metadata = get_sp500_list_metadata()
+        if metadata and metadata['last_refreshed']:
+            last_refresh = metadata['last_refreshed']
+            if isinstance(last_refresh, str):
+                last_refresh = datetime.fromisoformat(last_refresh)
+            age_days = (datetime.now() - last_refresh).days
+            if age_days < SP500_LIST_REFRESH_DAYS:
+                logger.info(f"S&P 500 list is fresh ({age_days} days old), skipping refresh")
+                return {
+                    'success': True,
+                    'skipped': True,
+                    'ticker_count': metadata['ticker_count'],
+                    'message': f'List is {age_days} days old, refresh not needed'
+                }
+
+    # Fetch from Wikipedia
+    constituents = fetch_sp500_from_wikipedia()
+    if not constituents:
+        logger.warning("Wikipedia fetch failed, keeping existing list")
+        return {'success': False, 'error': 'Failed to fetch from Wikipedia'}
+
+    new_tickers = {c['ticker'] for c in constituents}
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # Get existing tickers
+        cursor.execute("SELECT ticker FROM sp500_constituents")
+        old_tickers = {row['ticker'] for row in cursor.fetchall()}
+
+        # Calculate changes
+        added = new_tickers - old_tickers
+        removed = old_tickers - new_tickers
+
+        # Clear and repopulate
+        cursor.execute("DELETE FROM sp500_constituents")
+        for c in constituents:
+            cursor.execute("""
+                INSERT INTO sp500_constituents (ticker, company_name, sector)
+                VALUES (?, ?, ?)
+            """, (c['ticker'], c['company_name'], c['sector']))
+
+        # Update metadata
+        cursor.execute("""
+            INSERT INTO sp500_list_metadata (id, last_refreshed, source, ticker_count)
+            VALUES (1, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                last_refreshed = excluded.last_refreshed,
+                source = excluded.source,
+                ticker_count = excluded.ticker_count
+        """, (datetime.now(), 'wikipedia', len(constituents)))
+
+        conn.commit()
+
+    # Log changes
+    if added:
+        logger.info(f"S&P 500 additions: {sorted(added)}")
+    if removed:
+        logger.info(f"S&P 500 removals: {sorted(removed)}")
+
+    return {
+        'success': True,
+        'ticker_count': len(constituents),
+        'added': sorted(added),
+        'removed': sorted(removed),
+    }
+
+
+def sync_sp500_flags() -> Dict:
+    """
+    Sync is_sp500 flags in ticker_metadata with current constituent list.
+
+    Sets is_sp500=True for current constituents, False for removed ones.
+
+    Returns:
+        Dict with 'marked', 'unmarked' counts.
+    """
+    init_db()
+    current_tickers = set(get_sp500_constituents())
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # Mark current constituents
+        marked = 0
+        for ticker in current_tickers:
+            cursor.execute("""
+                INSERT INTO ticker_metadata (ticker, is_sp500)
+                VALUES (?, 1)
+                ON CONFLICT(ticker) DO UPDATE SET is_sp500 = 1
+            """, (ticker,))
+            marked += 1
+
+        # Unmark removed constituents
+        cursor.execute("""
+            UPDATE ticker_metadata
+            SET is_sp500 = 0
+            WHERE is_sp500 = 1 AND ticker NOT IN ({})
+        """.format(','.join('?' * len(current_tickers))), tuple(current_tickers))
+        unmarked = cursor.rowcount
+
+        conn.commit()
+
+    logger.info(f"Synced S&P 500 flags: {marked} marked, {unmarked} unmarked")
+    return {'marked': marked, 'unmarked': unmarked}
+
+
+def get_sp500_constituents(refresh_if_stale: bool = True) -> List[str]:
+    """
+    Get the current S&P 500 constituent tickers.
+
+    Fetches from Wikipedia and caches locally. Falls back to static list
+    if fetch fails and no cache exists.
+
+    Args:
+        refresh_if_stale: If True, refresh from Wikipedia if cache is old.
+
+    Returns:
+        List of ticker symbols.
+    """
+    init_db()
+
+    # Try to refresh if needed
+    if refresh_if_stale:
+        try:
+            refresh_sp500_constituents(force=False)
+        except Exception as e:
+            logger.warning(f"Failed to refresh S&P 500 list: {e}")
+
+    # Get from cache
+    cached = get_cached_sp500_constituents()
+    if cached:
+        return cached
+
+    # Fallback to static list
+    logger.warning("No cached S&P 500 list, using fallback static list")
+    return _get_fallback_sp500_list()
 
 
 class SP500Cacher:
