@@ -114,23 +114,22 @@ function DiscoveredTriggers({ onSelectTrigger, apiKey }) {
 
   const getCriteriaDescription = (criteria) => {
     const { condition_type, condition_tickers } = criteria;
-    const ticker = condition_tickers?.[0] || 'SPY';
 
     switch (condition_type) {
       case 'rsi_above':
-        return `RSI(${criteria.rsi_period}) > ${criteria.rsi_threshold} on ${ticker}`;
+        return `RSI(${criteria.rsi_period}) > ${criteria.rsi_threshold}`;
       case 'rsi_below':
-        return `RSI(${criteria.rsi_period}) < ${criteria.rsi_threshold} on ${ticker}`;
+        return `RSI(${criteria.rsi_period}) < ${criteria.rsi_threshold}`;
       case 'ma_crossover':
-        return `${criteria.ma_short}MA crosses above ${criteria.ma_long}MA on ${ticker}`;
+        return `${criteria.ma_short}MA crosses above ${criteria.ma_long}MA`;
       case 'ma_crossunder':
-        return `${criteria.ma_short}MA crosses below ${criteria.ma_long}MA on ${ticker}`;
+        return `${criteria.ma_short}MA crosses below ${criteria.ma_long}MA`;
       case 'momentum_above':
         return `Momentum(${criteria.momentum_period}) > ${(criteria.momentum_threshold * 100).toFixed(0)}%`;
       case 'momentum_below':
         return `Momentum(${criteria.momentum_period}) < ${(criteria.momentum_threshold * 100).toFixed(0)}%`;
       case 'single_ath':
-        return `${ticker} ATH (gap > ${criteria.days_gap} days)`;
+        return `ATH (gap > ${criteria.days_gap} days)`;
       case 'dual_ath':
         return `Dual ATH: ${condition_tickers?.join(' & ')} (gap > ${criteria.days_gap})`;
       default:
@@ -250,6 +249,7 @@ function DiscoveredTriggers({ onSelectTrigger, apiKey }) {
                     <tr>
                       <th style={{ width: '45px' }}>Rank</th>
                       <th style={{ width: '55px' }}>Score</th>
+                      <th style={{ width: '60px' }}>Target</th>
                       <th style={{ width: '70px' }}>Type</th>
                       <th>Criteria</th>
                       <th style={{ width: '60px' }}>Events</th>
@@ -275,6 +275,9 @@ function DiscoveredTriggers({ onSelectTrigger, apiKey }) {
                             <span className={`badge ${trigger.score >= 70 ? 'bg-success' : trigger.score >= 50 ? 'bg-warning' : 'bg-secondary'}`}>
                               {formatScore(trigger.score)}
                             </span>
+                          </td>
+                          <td>
+                            <span className="badge bg-dark">{trigger.criteria?.target_ticker || 'SPY'}</span>
                           </td>
                           <td>
                             {trigger.trigger_type ? (
