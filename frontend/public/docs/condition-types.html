@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Condition Types - Stock Market History Cruncher</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding: 2rem; max-width: 900px; margin: 0 auto; }
+        .condition-card { margin-bottom: 1.5rem; }
+        .formula { background: #f8f9fa; padding: 0.5rem 1rem; border-radius: 4px; font-family: monospace; }
+        .example { background: #e7f5ff; padding: 1rem; border-radius: 4px; margin-top: 0.5rem; }
+        h1 { margin-bottom: 1.5rem; }
+        h3 { color: #495057; border-bottom: 2px solid #dee2e6; padding-bottom: 0.5rem; }
+        .badge-bullish { background: #28a745; }
+        .badge-bearish { background: #dc3545; }
+        .badge-neutral { background: #6c757d; }
+    </style>
+</head>
+<body>
+    <h1>Condition Types Documentation</h1>
+    <p class="lead">This guide explains each trigger condition type available in Stock Market History Cruncher.</p>
+
+    <hr>
+
+    <!-- RSI Conditions -->
+    <div class="condition-card">
+        <h3>RSI Crosses Above <span class="badge badge-bullish">Bullish</span></h3>
+        <p><strong>What it measures:</strong> The Relative Strength Index (RSI) crossing above a threshold value.</p>
+
+        <p><strong>How RSI works:</strong></p>
+        <div class="formula">
+            RSI = 100 - (100 / (1 + RS))<br>
+            RS = Average Gain / Average Loss over N periods
+        </div>
+
+        <p class="mt-3"><strong>Parameters:</strong></p>
+        <ul>
+            <li><strong>RSI Period:</strong> Number of days to calculate RSI (default: 14)</li>
+            <li><strong>RSI Threshold:</strong> Value RSI must cross above (default: 70)</li>
+        </ul>
+
+        <p><strong>Interpretation:</strong></p>
+        <ul>
+            <li>RSI > 70: Traditionally considered "overbought" but often signals strong momentum</li>
+            <li>RSI > 60: Moderate strength, trend confirmation</li>
+            <li>Crossing above indicates increasing buying pressure</li>
+        </ul>
+
+        <div class="example">
+            <strong>Example:</strong> RSI(14) crossing above 70 on SPY has historically led to continued gains 85% of the time over the following year, with average returns of 13-14%.
+        </div>
+    </div>
+
+    <div class="condition-card">
+        <h3>RSI Crosses Below <span class="badge badge-bearish">Contrarian Buy</span></h3>
+        <p><strong>What it measures:</strong> The RSI crossing below a threshold, indicating oversold conditions.</p>
+
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><strong>RSI Period:</strong> Number of days (default: 14)</li>
+            <li><strong>RSI Threshold:</strong> Value RSI must cross below (default: 30)</li>
+        </ul>
+
+        <p><strong>Interpretation:</strong></p>
+        <ul>
+            <li>RSI < 30: "Oversold" - selling may be exhausted</li>
+            <li>This is a <strong>contrarian signal</strong> - extreme fear often precedes rebounds</li>
+            <li>Works best when combined with longer-term uptrend</li>
+        </ul>
+
+        <div class="example">
+            <strong>Example:</strong> RSI(15) crossing below 30 on SPY has a 92% win rate over 1 year with average returns of 19%. Rare but powerful signal.
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Momentum Conditions -->
+    <div class="condition-card">
+        <h3>Momentum Above <span class="badge badge-bullish">Bullish</span></h3>
+        <p><strong>What it measures:</strong> Price momentum (rate of change) crossing above a threshold.</p>
+
+        <div class="formula">
+            Momentum = (Current Price - Price N days ago) / Price N days ago
+        </div>
+
+        <p class="mt-3"><strong>Parameters:</strong></p>
+        <ul>
+            <li><strong>Momentum Period:</strong> Lookback period in days (default: 12)</li>
+            <li><strong>Threshold:</strong> Percentage change required (default: 5%)</li>
+        </ul>
+
+        <p><strong>Interpretation:</strong></p>
+        <ul>
+            <li>High momentum (>10%) indicates strong trend acceleration</li>
+            <li>Extreme momentum (>12%) is rare but historically very bullish</li>
+            <li>Signals that buyers are aggressively entering</li>
+        </ul>
+
+        <div class="example">
+            <strong>Example:</strong> 20-day momentum crossing above 12% has only occurred 7 times in 10 years, but resulted in 34% average returns with 100% win rate.
+        </div>
+    </div>
+
+    <div class="condition-card">
+        <h3>Momentum Below <span class="badge badge-bearish">Contrarian Buy</span></h3>
+        <p><strong>What it measures:</strong> Extreme negative momentum indicating panic selling.</p>
+
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><strong>Momentum Period:</strong> Lookback period (default: 12)</li>
+            <li><strong>Threshold:</strong> Negative percentage (default: -5%)</li>
+        </ul>
+
+        <p><strong>Interpretation:</strong></p>
+        <ul>
+            <li>Extreme negative momentum (<-9%) signals capitulation</li>
+            <li>Historically, these are excellent long-term buying opportunities</li>
+            <li>Requires conviction to buy during market fear</li>
+        </ul>
+
+        <div class="example">
+            <strong>Example:</strong> 10-day momentum crossing below -9% (9 events in 10 years) has 100% win rate with 23.5% average 1-year return.
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Moving Average Conditions -->
+    <div class="condition-card">
+        <h3>MA Golden Cross <span class="badge badge-bullish">Bullish</span></h3>
+        <p><strong>What it measures:</strong> Short-term moving average crossing above long-term moving average.</p>
+
+        <div class="formula">
+            Golden Cross: Short MA > Long MA (when previously Short MA < Long MA)
+        </div>
+
+        <p class="mt-3"><strong>Parameters:</strong></p>
+        <ul>
+            <li><strong>Short MA Period:</strong> Faster moving average (default: 50 days)</li>
+            <li><strong>Long MA Period:</strong> Slower moving average (default: 200 days)</li>
+        </ul>
+
+        <p><strong>Interpretation:</strong></p>
+        <ul>
+            <li>Classic trend-following signal</li>
+            <li>Indicates shift from downtrend to uptrend</li>
+            <li>50/200 cross is the most widely followed</li>
+        </ul>
+    </div>
+
+    <div class="condition-card">
+        <h3>MA Death Cross <span class="badge badge-bearish">Bearish</span></h3>
+        <p><strong>What it measures:</strong> Short-term MA crossing below long-term MA.</p>
+
+        <p><strong>Interpretation:</strong></p>
+        <ul>
+            <li>Signals potential trend reversal to downside</li>
+            <li>Often used as risk-off signal</li>
+            <li>Can be late signal as it's lagging indicator</li>
+        </ul>
+    </div>
+
+    <hr>
+
+    <!-- ATH Conditions -->
+    <div class="condition-card">
+        <h3>Dual All-Time High <span class="badge badge-bullish">Bullish</span></h3>
+        <p><strong>What it measures:</strong> Two or more tickers simultaneously hitting new all-time highs after a specified gap period.</p>
+
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><strong>Days Gap:</strong> Minimum days since last ATH for each ticker (default: 365)</li>
+        </ul>
+
+        <p><strong>Interpretation:</strong></p>
+        <ul>
+            <li>Classic Dow Theory confirmation when using DJI + DJT</li>
+            <li>Broad market strength when multiple indices hit ATH together</li>
+            <li>Gap requirement filters out consecutive ATH clusters</li>
+        </ul>
+
+        <div class="example">
+            <strong>Example:</strong> When both Dow Industrials (^DJI) and Dow Transports (^DJT) hit ATH after 365+ day gap, it historically confirms bull market continuation.
+        </div>
+    </div>
+
+    <div class="condition-card">
+        <h3>Single All-Time High <span class="badge badge-bullish">Bullish</span></h3>
+        <p><strong>What it measures:</strong> A single ticker hitting new all-time high after a gap period.</p>
+
+        <p><strong>Interpretation:</strong></p>
+        <ul>
+            <li>New highs after long consolidation signal breakout</li>
+            <li>Often marks beginning of new bull leg</li>
+        </ul>
+    </div>
+
+    <hr>
+
+    <!-- Put/Call Ratio Conditions -->
+    <div class="condition-card">
+        <h3>Put/Call Ratio Above <span class="badge badge-bearish">Contrarian Buy</span></h3>
+        <p><strong>What it measures:</strong> The equity put/call ratio crossing above a threshold, indicating elevated fear.</p>
+
+        <div class="formula">
+            Put/Call Ratio = Put Volume / Call Volume
+        </div>
+
+        <p class="mt-3"><strong>Parameters:</strong></p>
+        <ul>
+            <li><strong>Threshold:</strong> P/C ratio level to trigger (default: 1.0)</li>
+        </ul>
+
+        <p><strong>Interpretation:</strong></p>
+        <ul>
+            <li>P/C > 1.0: More puts than calls being bought = bearish sentiment/fear</li>
+            <li>This is a <strong>contrarian indicator</strong> - high fear often precedes rallies</li>
+            <li>Typical range: 0.6 - 1.2</li>
+        </ul>
+
+        <div class="example">
+            <strong>Example:</strong> When P/C spikes above 1.0, it often indicates panic selling is occurring. Historically, these moments have been good buying opportunities.
+        </div>
+    </div>
+
+    <div class="condition-card">
+        <h3>Put/Call Ratio Below <span class="badge badge-neutral">Caution</span></h3>
+        <p><strong>What it measures:</strong> The P/C ratio dropping below a threshold, indicating complacency.</p>
+
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><strong>Threshold:</strong> P/C ratio level (default: 0.7)</li>
+        </ul>
+
+        <p><strong>Interpretation:</strong></p>
+        <ul>
+            <li>P/C < 0.7: Heavy call buying = bullish sentiment/complacency</li>
+            <li>Extreme optimism can signal market tops</li>
+            <li>Use as caution signal, not necessarily a sell signal</li>
+        </ul>
+    </div>
+
+    <hr>
+
+    <!-- Breadth Conditions -->
+    <div class="condition-card">
+        <h3>S&P 500 % Below 200 DMA <span class="badge badge-bearish">Contrarian Buy</span></h3>
+        <p><strong>What it measures:</strong> The percentage of S&P 500 stocks trading below their 200-day moving average dropping to a threshold.</p>
+
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><strong>Breadth Threshold:</strong> Percentage level to trigger (default: 30%)</li>
+        </ul>
+
+        <p><strong>Interpretation:</strong></p>
+        <ul>
+            <li>High % below 200 DMA = widespread weakness/fear</li>
+            <li>When it drops TO the threshold (from above), indicates improving breadth</li>
+            <li>Breadth improvement often precedes price improvement</li>
+        </ul>
+
+        <div class="example">
+            <strong>Note:</strong> This condition requires fetching data for all 500 S&P constituents, which may take longer to process.
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Scoring -->
+    <div class="condition-card">
+        <h3>Understanding Trigger Scores</h3>
+        <p>Each discovered trigger is scored on a 0-100 scale based on four factors:</p>
+
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Component</th>
+                    <th>Weight</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Average Return</td>
+                    <td>30%</td>
+                    <td>1-year forward return (capped at 40%)</td>
+                </tr>
+                <tr>
+                    <td>Win Rate</td>
+                    <td>30%</td>
+                    <td>Percentage of positive outcomes</td>
+                </tr>
+                <tr>
+                    <td>Sharpe Ratio</td>
+                    <td>25%</td>
+                    <td>Risk-adjusted return quality</td>
+                </tr>
+                <tr>
+                    <td>Statistical Significance</td>
+                    <td>15%</td>
+                    <td>Number of events (30+ = full credit)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p><strong>Score Interpretation:</strong></p>
+        <ul>
+            <li><strong>90-100:</strong> Exceptional trigger (rare)</li>
+            <li><strong>75-89:</strong> Strong trigger</li>
+            <li><strong>60-74:</strong> Good trigger</li>
+            <li><strong>Below 60:</strong> Weak/unreliable</li>
+        </ul>
+    </div>
+
+    <hr>
+
+    <p class="text-muted">
+        <a href="/">&larr; Back to Application</a>
+    </p>
+</body>
+</html>

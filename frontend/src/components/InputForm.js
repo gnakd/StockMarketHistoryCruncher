@@ -9,6 +9,8 @@ const CONDITION_TYPES = [
   { value: 'ma_crossunder', label: 'MA Death Cross', description: 'Short MA crosses below long MA' },
   { value: 'momentum_above', label: 'Momentum Above', description: 'Momentum crosses above threshold' },
   { value: 'momentum_below', label: 'Momentum Below', description: 'Momentum crosses below threshold' },
+  { value: 'putcall_above', label: 'Put/Call Ratio Above', description: 'P/C crosses above threshold (fear spike = contrarian buy)' },
+  { value: 'putcall_below', label: 'Put/Call Ratio Below', description: 'P/C crosses below threshold (complacency = caution)' },
   { value: 'sp500_pct_below_200ma', label: 'S&P 500 % Below 200 DMA', description: '% of S&P 500 stocks below 200-day MA drops to threshold' }
 ];
 
@@ -21,17 +23,18 @@ const DEFAULT_PARAMS = {
   ma_crossunder: { ma_short: 50, ma_long: 200 },
   momentum_above: { momentum_period: 12, momentum_threshold: 0.05 },
   momentum_below: { momentum_period: 12, momentum_threshold: -0.05 },
+  putcall_above: { putcall_threshold: 1.0 },
+  putcall_below: { putcall_threshold: 0.7 },
   sp500_pct_below_200ma: { breadth_threshold: 30 }
 };
 
-function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied }) {
+function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied, apiKey, onApiKeyChange }) {
   const [conditionTickers, setConditionTickers] = useState(['^DJI', '^DJT']);
   const [targetTicker, setTargetTicker] = useState('^GSPC');
   const [startDate, setStartDate] = useState('2024-01-15');
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [conditionType, setConditionType] = useState('dual_ath');
   const [conditionParams, setConditionParams] = useState(DEFAULT_PARAMS.dual_ath);
-  const [apiKey, setApiKey] = useState('');
   const [tickerInput, setTickerInput] = useState('');
 
   // Track if we just applied a trigger to prevent param reset
@@ -190,6 +193,28 @@ function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied }) {
           </>
         );
 
+      case 'putcall_above':
+      case 'putcall_below':
+        return (
+          <div className="col-md-4">
+            <label className="form-label">Put/Call Ratio Threshold</label>
+            <input
+              type="number"
+              className="form-control"
+              value={conditionParams.putcall_threshold || (conditionType === 'putcall_above' ? 1.0 : 0.7)}
+              onChange={(e) => handleParamChange('putcall_threshold', e.target.value)}
+              min="0.1"
+              max="3.0"
+              step="0.05"
+            />
+            <small className="text-muted">
+              {conditionType === 'putcall_above'
+                ? 'High P/C (>1.0) = fear/bearish sentiment. Typical range: 0.8-1.5'
+                : 'Low P/C (<0.7) = complacency/bullish. Typical range: 0.5-0.8'}
+            </small>
+          </div>
+        );
+
       case 'sp500_pct_below_200ma':
         return (
           <div className="col-md-4">
@@ -215,8 +240,8 @@ function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied }) {
   return (
     <form onSubmit={handleSubmit}>
       <div className="row g-3">
-        {/* Condition Tickers - hidden for S&P 500 breadth condition */}
-        {conditionType !== 'sp500_pct_below_200ma' ? (
+        {/* Condition Tickers - hidden for conditions that don't need them */}
+        {!['sp500_pct_below_200ma', 'putcall_above', 'putcall_below'].includes(conditionType) ? (
           <div className="col-md-6">
             <label className="form-label">Condition Tickers</label>
             <div className="input-group mb-2">
@@ -257,7 +282,11 @@ function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied }) {
           <div className="col-md-6">
             <label className="form-label">Condition Tickers</label>
             <div className="alert alert-info mb-0 py-2">
-              <small>This condition automatically uses all S&P 500 constituents. No condition tickers needed.</small>
+              <small>
+                {conditionType === 'sp500_pct_below_200ma'
+                  ? 'This condition automatically uses all S&P 500 constituents. No condition tickers needed.'
+                  : 'Put/Call ratio uses CBOE market-wide data (2003-2019). No condition tickers needed.'}
+              </small>
             </div>
           </div>
         )}
@@ -301,7 +330,18 @@ function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied }) {
 
         {/* Condition Type */}
         <div className="col-md-6">
-          <label className="form-label">Condition Type</label>
+          <label className="form-label">
+            Condition Type{' '}
+            <a
+              href="/docs/condition-types.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-decoration-none"
+              title="View documentation for all condition types"
+            >
+              <small>(docs)</small>
+            </a>
+          </label>
           <select
             className="form-select"
             value={conditionType}
@@ -326,7 +366,7 @@ function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied }) {
             className="form-control"
             placeholder="Enter your Polygon.io API key"
             value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
+            onChange={(e) => onApiKeyChange(e.target.value)}
             required
           />
           <small className="text-muted">
