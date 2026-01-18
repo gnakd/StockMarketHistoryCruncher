@@ -45,7 +45,9 @@ class Config:
         'momentum_above',
         'momentum_below',
         'breadth_adv_dec',
-        'sp500_pct_below_200ma'
+        'sp500_pct_below_200ma',
+        'putcall_above',
+        'putcall_below'
     ]
 
     # Default condition parameters
@@ -59,5 +61,10 @@ class Config:
         'momentum_above': {'momentum_period': 12, 'momentum_threshold': 0.05},
         'momentum_below': {'momentum_period': 12, 'momentum_threshold': -0.05},
         'breadth_adv_dec': {'breadth_threshold': 2.0},
-        'sp500_pct_below_200ma': {'breadth_threshold': 30}
+        'sp500_pct_below_200ma': {'breadth_threshold': 30},
+        # Put/Call ratio triggers (contrarian indicators)
+        # High P/C (>1.0) = fear/bearish sentiment = potential buy signal
+        # Low P/C (<0.7) = complacency/bullish sentiment = potential caution
+        'putcall_above': {'putcall_threshold': 1.0},
+        'putcall_below': {'putcall_threshold': 0.7}
     }

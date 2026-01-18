@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, date
 import time
 import logging
 from config import Config
+from cache.putcall_ratio import get_putcall_manager, PutCallRatioManager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -522,6 +523,66 @@ def find_momentum_events(condition_dfs, params):
     return events
 
 
+def find_putcall_events(start_date: str, end_date: str, params: dict, cross_above: bool = True):
+    """
+    Find dates where put/call ratio crosses threshold.
+
+    Args:
+        start_date: Start date string (YYYY-MM-DD)
+        end_date: End date string (YYYY-MM-DD)
+        params: Dict with 'putcall_threshold' key
+        cross_above: If True, find crosses above threshold (high fear = buy signal)
+                    If False, find crosses below threshold (complacency = caution)
+
+    Returns:
+        List of datetime dates when crossover occurred
+    """
+    threshold = params.get('putcall_threshold', 1.0 if cross_above else 0.7)
+
+    # Get put/call ratio manager (CBOE data should already be loaded)
+    manager = get_putcall_manager()
+
+    # Ensure CBOE data is loaded
+    manager.load_cboe_historical(force_reload=False)
+
+    # Get ratio series
+    start_dt = date.fromisoformat(start_date)
+    end_dt = date.fromisoformat(end_date)
+    df = manager.get_ratio_series(start_dt, end_dt)
+
+    if df.empty:
+        logger.warning(f"No put/call ratio data available for {start_date} to {end_date}")
+        return []
+
+    events = []
+
+    for i in range(1, len(df)):
+        current_date = df.index[i]
+        current_ratio = df.iloc[i]['ratio']
+        prev_ratio = df.iloc[i-1]['ratio']
+
+        if pd.isna(current_ratio) or pd.isna(prev_ratio):
+            continue
+
+        # Convert to pandas Timestamp for consistent comparison
+        current_ts = pd.Timestamp(current_date)
+
+        if cross_above:
+            # Crossing above threshold (e.g., P/C > 1.0 = fear spike)
+            if prev_ratio < threshold and current_ratio >= threshold:
+                # Avoid clustering events too close together (5 day minimum gap)
+                if not events or (current_ts - events[-1]).days > 5:
+                    events.append(current_ts)
+        else:
+            # Crossing below threshold (e.g., P/C < 0.7 = complacency)
+            if prev_ratio > threshold and current_ratio <= threshold:
+                if not events or (current_ts - events[-1]).days > 5:
+                    events.append(current_ts)
+
+    logger.info(f"Found {len(events)} put/call {'above' if cross_above else 'below'} {threshold} events")
+    return events
+
+
 def compute_forward_returns(target_df, event_dates, intervals):
     """Compute forward returns for each event"""
     results = []
@@ -662,8 +723,9 @@ def fetch_data():
         if not api_key:
             return jsonify({'error': 'Polygon API key is required'}), 400
 
-        # S&P 500 breadth condition doesn't require condition tickers
-        if not condition_tickers and condition_type != 'sp500_pct_below_200ma':
+        # Some conditions don't require condition tickers
+        no_ticker_conditions = ['sp500_pct_below_200ma', 'putcall_above', 'putcall_below']
+        if not condition_tickers and condition_type not in no_ticker_conditions:
             return jsonify({'error': 'At least one condition ticker is required'}), 400
 
         # Fetch data for all tickers
@@ -713,6 +775,12 @@ def fetch_data():
         elif condition_type == 'momentum_below':
             condition_params['momentum_threshold'] = -abs(condition_params.get('momentum_threshold', 0.05))
             event_dates = find_momentum_events(condition_dfs, condition_params)
+        elif condition_type == 'putcall_above':
+            # High P/C ratio = fear/bearish sentiment = contrarian buy signal
+            event_dates = find_putcall_events(start_date, end_date, condition_params, cross_above=True)
+        elif condition_type == 'putcall_below':
+            # Low P/C ratio = complacency/bullish sentiment = contrarian caution signal
+            event_dates = find_putcall_events(start_date, end_date, condition_params, cross_above=False)
         elif condition_type == 'sp500_pct_below_200ma':
             # Fetch data for all S&P 500 constituents
             sp500_tickers = get_sp500_constituents()
@@ -979,6 +1047,15 @@ def refresh_trigger_activity():
                                 if not event_dates or (event_date - event_dates[-1]).days > 5:
                                     event_dates.append(event_date)
 
+                elif condition_type in ('putcall_above', 'putcall_below'):
+                    cross_above = condition_type == 'putcall_above'
+                    event_dates = find_putcall_events(
+                        start_date.isoformat() if hasattr(start_date, 'isoformat') else str(start_date),
+                        end_date.isoformat() if hasattr(end_date, 'isoformat') else str(end_date),
+                        condition_params,
+                        cross_above=cross_above
+                    )
+
                 # Calculate recent triggers (last 30 days)
                 today = datetime.now().date()
                 thirty_days_ago = today - timedelta(days=30)
@@ -1176,6 +1253,80 @@ def sp500_cache_status():
         'job': job_status,
         'coverage': coverage
     })
+
+
+@app.route('/api/putcall', methods=['GET'])
+def get_putcall_ratio():
+    """
+    Get put/call ratio data.
+
+    Query params:
+        start_date: Start date (YYYY-MM-DD), default: 2003-10-17
+        end_date: End date (YYYY-MM-DD), default: today
+        reload: If 'true', force reload CBOE data
+    """
+    start_date = request.args.get('start_date', '2003-10-17')
+    end_date = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
+    reload = request.args.get('reload', 'false').lower() == 'true'
+
+    try:
+        manager = get_putcall_manager()
+
+        # Load CBOE data if needed
+        manager.load_cboe_historical(force_reload=reload)
+
+        # Get data range
+        start_dt = date.fromisoformat(start_date)
+        end_dt = date.fromisoformat(end_date)
+
+        # Get ratio series
+        df = manager.get_ratio_series(start_dt, end_dt)
+
+        if df.empty:
+            return jsonify({
+                'status': 'no_data',
+                'message': f'No put/call ratio data available for {start_date} to {end_date}',
+                'data': [],
+                'stats': manager.get_stats()
+            })
+
+        # Convert to list of dicts
+        data = []
+        for idx, row in df.iterrows():
+            data.append({
+                'date': idx.strftime('%Y-%m-%d'),
+                'ratio': row['ratio'],
+                'calls': int(row['calls']) if pd.notna(row['calls']) else None,
+                'puts': int(row['puts']) if pd.notna(row['puts']) else None,
+                'source': row['source']
+            })
+
+        return jsonify({
+            'status': 'ok',
+            'count': len(data),
+            'start_date': start_date,
+            'end_date': end_date,
+            'data': data,
+            'stats': manager.get_stats()
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching put/call ratio: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/putcall/stats', methods=['GET'])
+def get_putcall_stats():
+    """Get statistics about put/call ratio data."""
+    try:
+        manager = get_putcall_manager()
+        manager.load_cboe_historical(force_reload=False)
+        return jsonify(manager.get_stats())
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':

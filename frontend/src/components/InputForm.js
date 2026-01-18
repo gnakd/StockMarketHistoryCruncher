@@ -379,7 +379,7 @@ function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied, apiKe
           <button
             type="submit"
             className="btn btn-analyze btn-lg"
-            disabled={loading || (conditionTickers.length === 0 && conditionType !== 'sp500_pct_below_200ma')}
+            disabled={loading || (conditionTickers.length === 0 && !['sp500_pct_below_200ma', 'putcall_above', 'putcall_below'].includes(conditionType))}
           >
             {loading ? (
               <>
