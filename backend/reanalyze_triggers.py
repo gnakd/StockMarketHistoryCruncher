@@ -182,11 +182,19 @@ def analyze_trigger(criteria: dict, cache_manager: CacheManager, start_date: dat
         win_rate = None
         sharpe = None
 
-    # Calculate score (same formula as original)
+    # Calculate normalized score (0-100 scale)
+    # Each component normalized to 0-1, then weighted to sum to 100
     if avg_return is not None and win_rate is not None:
-        score = (avg_return * 100 + win_rate * 50) + len(events) * 0.5
-        if sharpe:
-            score += sharpe * 5
+        return_score = min(avg_return / 0.40, 1.0)       # Cap at 40% annual return
+        winrate_score = win_rate                          # Already 0-1
+        sharpe_score = min(sharpe / 2.5, 1.0) if sharpe else 0  # Cap at 2.5 Sharpe
+        significance_score = min(len(events) / 30, 1.0)  # 30+ events = full credit
+
+        # Weighted score (weights sum to 100)
+        score = (return_score * 30 +       # 30% weight: returns
+                 winrate_score * 30 +      # 30% weight: consistency
+                 sharpe_score * 25 +       # 25% weight: risk-adjusted quality
+                 significance_score * 15)  # 15% weight: statistical significance
     else:
         score = 0
 
