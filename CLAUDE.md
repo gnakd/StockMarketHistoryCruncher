@@ -10,7 +10,18 @@ Analyzes historical market performance after trigger conditions. Integrates with
 
 ## Recent Changes (2026-01-18)
 
-### Put/Call Ratio Trigger (NEW)
+### VIX Trigger (NEW)
+- Added `vix_above` and `vix_below` condition types
+- Historical data from FRED (1990-present, ~9100 records)
+- Contrarian fear gauge indicator:
+  - High VIX (>30) = extreme fear = contrarian buy signal
+  - Low VIX (<15) = complacency = potential caution signal
+- New files:
+  - `backend/cache/vix.py` - VIX data manager, FRED loader
+  - `backend/tests/test_vix.py` - validation tests
+- Free data, no API key required
+
+### Put/Call Ratio Trigger
 - Added `putcall_above` and `putcall_below` condition types
 - Historical data from CBOE (2003-2019, ~4000 records)
 - Contrarian sentiment indicator:
@@ -97,4 +108,3 @@ Several frontend files have modifications - review and commit or discard.
 - Trigger comparison view (overlay multiple triggers on same chart)
 - Backtest date range selector in UI
 - Sector rotation signals using S&P 500 stock data
-- **VIX Index as criteria trigger** - add VIX level thresholds (e.g., VIX > 30 = fear, VIX < 15 = complacency) as trigger conditions. VIX data available free via FRED API.

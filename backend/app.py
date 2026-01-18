@@ -8,6 +8,7 @@ import time
 import logging
 from config import Config
 from cache.putcall_ratio import get_putcall_manager, PutCallRatioManager
+from cache.vix import get_vix_manager, VIXManager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -583,6 +584,64 @@ def find_putcall_events(start_date: str, end_date: str, params: dict, cross_abov
     return events
 
 
+def find_vix_events(start_date: str, end_date: str, params: dict, cross_above: bool = True):
+    """
+    Find dates where VIX crosses threshold.
+
+    Args:
+        start_date: Start date string (YYYY-MM-DD)
+        end_date: End date string (YYYY-MM-DD)
+        params: Dict with 'vix_threshold' key
+        cross_above: If True, find crosses above threshold (fear spike = buy signal)
+                    If False, find crosses below threshold (complacency = caution)
+
+    Returns:
+        List of datetime dates when crossover occurred
+    """
+    threshold = params.get('vix_threshold', 30 if cross_above else 15)
+
+    # Get VIX manager and ensure data is loaded
+    manager = get_vix_manager()
+    manager.load_fred_data(force_reload=False)
+
+    # Get VIX series
+    start_dt = date.fromisoformat(start_date)
+    end_dt = date.fromisoformat(end_date)
+    df = manager.get_series(start_dt, end_dt)
+
+    if df.empty:
+        logger.warning(f"No VIX data available for {start_date} to {end_date}")
+        return []
+
+    events = []
+
+    for i in range(1, len(df)):
+        current_date = df.index[i]
+        current_vix = df.iloc[i]['value']
+        prev_vix = df.iloc[i-1]['value']
+
+        if pd.isna(current_vix) or pd.isna(prev_vix):
+            continue
+
+        # Convert to pandas Timestamp for consistent comparison
+        current_ts = pd.Timestamp(current_date)
+
+        if cross_above:
+            # Crossing above threshold (e.g., VIX > 30 = fear spike)
+            if prev_vix < threshold and current_vix >= threshold:
+                # Avoid clustering events too close together (5 day minimum gap)
+                if not events or (current_ts - events[-1]).days > 5:
+                    events.append(current_ts)
+        else:
+            # Crossing below threshold (e.g., VIX < 15 = complacency)
+            if prev_vix > threshold and current_vix <= threshold:
+                if not events or (current_ts - events[-1]).days > 5:
+                    events.append(current_ts)
+
+    logger.info(f"Found {len(events)} VIX {'above' if cross_above else 'below'} {threshold} events")
+    return events
+
+
 def compute_forward_returns(target_df, event_dates, intervals):
     """Compute forward returns for each event"""
     results = []
@@ -724,9 +783,13 @@ def fetch_data():
             return jsonify({'error': 'Polygon API key is required'}), 400
 
         # Some conditions don't require condition tickers
-        no_ticker_conditions = ['sp500_pct_below_200ma', 'putcall_above', 'putcall_below']
+        no_ticker_conditions = ['sp500_pct_below_200ma', 'putcall_above', 'putcall_below', 'vix_above', 'vix_below']
         if not condition_tickers and condition_type not in no_ticker_conditions:
             return jsonify({'error': 'At least one condition ticker is required'}), 400
+
+        # For no-ticker conditions, ignore any condition tickers passed
+        if condition_type in no_ticker_conditions:
+            condition_tickers = []
 
         # Fetch data for all tickers
         all_tickers = list(set(condition_tickers + [target_ticker]))
@@ -738,7 +801,7 @@ def fetch_data():
                 return jsonify({'error': f'No data found for {ticker}'}), 400
             ticker_data[ticker] = bars_to_dataframe(bars)
 
-        condition_dfs = [ticker_data[t] for t in condition_tickers]
+        condition_dfs = [ticker_data[t] for t in condition_tickers] if condition_tickers else []
         target_df = ticker_data[target_ticker]
 
         # Find events based on condition type
@@ -781,6 +844,12 @@ def fetch_data():
         elif condition_type == 'putcall_below':
             # Low P/C ratio = complacency/bullish sentiment = contrarian caution signal
             event_dates = find_putcall_events(start_date, end_date, condition_params, cross_above=False)
+        elif condition_type == 'vix_above':
+            # High VIX = fear/volatility spike = contrarian buy signal
+            event_dates = find_vix_events(start_date, end_date, condition_params, cross_above=True)
+        elif condition_type == 'vix_below':
+            # Low VIX = complacency = potential caution signal
+            event_dates = find_vix_events(start_date, end_date, condition_params, cross_above=False)
         elif condition_type == 'sp500_pct_below_200ma':
             # Fetch data for all S&P 500 constituents
             sp500_tickers = get_sp500_constituents()

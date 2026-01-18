@@ -11,6 +11,8 @@ const CONDITION_TYPES = [
   { value: 'momentum_below', label: 'Momentum Below', description: 'Momentum crosses below threshold' },
   { value: 'putcall_above', label: 'Put/Call Ratio Above', description: 'P/C crosses above threshold (fear spike = contrarian buy)' },
   { value: 'putcall_below', label: 'Put/Call Ratio Below', description: 'P/C crosses below threshold (complacency = caution)' },
+  { value: 'vix_above', label: 'VIX Above', description: 'VIX crosses above threshold (fear spike = contrarian buy)' },
+  { value: 'vix_below', label: 'VIX Below', description: 'VIX crosses below threshold (complacency = caution)' },
   { value: 'sp500_pct_below_200ma', label: 'S&P 500 % Below 200 DMA', description: '% of S&P 500 stocks below 200-day MA drops to threshold' }
 ];
 
@@ -25,6 +27,8 @@ const DEFAULT_PARAMS = {
   momentum_below: { momentum_period: 12, momentum_threshold: -0.05 },
   putcall_above: { putcall_threshold: 1.0 },
   putcall_below: { putcall_threshold: 0.7 },
+  vix_above: { vix_threshold: 30 },
+  vix_below: { vix_threshold: 15 },
   sp500_pct_below_200ma: { breadth_threshold: 30 }
 };
 
@@ -215,6 +219,28 @@ function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied, apiKe
           </div>
         );
 
+      case 'vix_above':
+      case 'vix_below':
+        return (
+          <div className="col-md-4">
+            <label className="form-label">VIX Threshold</label>
+            <input
+              type="number"
+              className="form-control"
+              value={conditionParams.vix_threshold || (conditionType === 'vix_above' ? 30 : 15)}
+              onChange={(e) => handleParamChange('vix_threshold', e.target.value)}
+              min="5"
+              max="80"
+              step="1"
+            />
+            <small className="text-muted">
+              {conditionType === 'vix_above'
+                ? 'High VIX (>30) = extreme fear = contrarian buy signal. Crisis levels: 40+'
+                : 'Low VIX (<15) = complacency = potential caution. Typical: 12-20'}
+            </small>
+          </div>
+        );
+
       case 'sp500_pct_below_200ma':
         return (
           <div className="col-md-4">
@@ -241,7 +267,7 @@ function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied, apiKe
     <form onSubmit={handleSubmit}>
       <div className="row g-3">
         {/* Condition Tickers - hidden for conditions that don't need them */}
-        {!['sp500_pct_below_200ma', 'putcall_above', 'putcall_below'].includes(conditionType) ? (
+        {!['sp500_pct_below_200ma', 'putcall_above', 'putcall_below', 'vix_above', 'vix_below'].includes(conditionType) ? (
           <div className="col-md-6">
             <label className="form-label">Condition Tickers</label>
             <div className="input-group mb-2">
@@ -285,6 +311,8 @@ function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied, apiKe
               <small>
                 {conditionType === 'sp500_pct_below_200ma'
                   ? 'This condition automatically uses all S&P 500 constituents. No condition tickers needed.'
+                  : conditionType.startsWith('vix_')
+                  ? 'VIX data from FRED (1990-present). No condition tickers needed.'
                   : 'Put/Call ratio uses CBOE market-wide data (2003-2019). No condition tickers needed.'}
               </small>
             </div>
@@ -379,7 +407,7 @@ function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied, apiKe
           <button
             type="submit"
             className="btn btn-analyze btn-lg"
-            disabled={loading || (conditionTickers.length === 0 && !['sp500_pct_below_200ma', 'putcall_above', 'putcall_below'].includes(conditionType))}
+            disabled={loading || (conditionTickers.length === 0 && !['sp500_pct_below_200ma', 'putcall_above', 'putcall_below', 'vix_above', 'vix_below'].includes(conditionType))}
           >
             {loading ? (
               <>

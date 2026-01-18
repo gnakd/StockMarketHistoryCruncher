@@ -47,7 +47,9 @@ class Config:
         'breadth_adv_dec',
         'sp500_pct_below_200ma',
         'putcall_above',
-        'putcall_below'
+        'putcall_below',
+        'vix_above',
+        'vix_below'
     ]
 
     # Default condition parameters
@@ -66,5 +68,10 @@ class Config:
         # High P/C (>1.0) = fear/bearish sentiment = potential buy signal
         # Low P/C (<0.7) = complacency/bullish sentiment = potential caution
         'putcall_above': {'putcall_threshold': 1.0},
-        'putcall_below': {'putcall_threshold': 0.7}
+        'putcall_below': {'putcall_threshold': 0.7},
+        # VIX triggers (fear gauge)
+        # VIX > 30 = extreme fear = contrarian buy signal
+        # VIX < 15 = complacency = potential caution
+        'vix_above': {'vix_threshold': 30},
+        'vix_below': {'vix_threshold': 15}
     }
