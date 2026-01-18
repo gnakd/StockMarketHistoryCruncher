@@ -19,6 +19,9 @@ class Config:
     CACHE_ROLLING_REFRESH_DAYS = int(os.getenv('CACHE_ROLLING_REFRESH_DAYS', '90'))
     CACHE_FULL_REFRESH_INTERVAL = int(os.getenv('CACHE_FULL_REFRESH_INTERVAL', '30'))
 
+    # Historical data range (10-year Polygon subscription starts from 2016-01-18)
+    HISTORICAL_START_DATE = os.getenv('HISTORICAL_START_DATE', '2016-01-18')
+
     # Trading day intervals for forward returns
     RETURN_INTERVALS = {
         '1_week': 5,

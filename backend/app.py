@@ -858,6 +858,219 @@ def get_discovered_triggers():
         }), 500
 
 
+@app.route('/api/triggers/refresh', methods=['POST'])
+def refresh_trigger_activity():
+    """Refresh recent trigger counts using current cached data."""
+    import json
+    from pathlib import Path
+
+    data = request.get_json() or {}
+    api_key = data.get('api_key', Config.POLYGON_API_KEY)
+
+    if not api_key:
+        return jsonify({'error': 'API key required'}), 400
+
+    triggers_file = Path(__file__).parent / "discovered_triggers" / "triggers.json"
+
+    if not triggers_file.exists():
+        return jsonify({'error': 'No triggers file found'}), 404
+
+    try:
+        with open(triggers_file) as f:
+            triggers_data = json.load(f)
+
+        triggers = triggers_data.get('triggers', [])
+        updated_triggers = []
+
+        for trigger in triggers:
+            criteria = trigger.get('criteria', {})
+            condition_type = criteria.get('condition_type')
+            condition_tickers = criteria.get('condition_tickers', [])
+            target_ticker = criteria.get('target_ticker', 'SPY')
+
+            # Get cached data range for the condition ticker
+            ticker = condition_tickers[0] if condition_tickers else target_ticker
+            cache = get_cache_manager(api_key)
+            cache_status = cache.get_cache_status(ticker)
+
+            if not cache_status or not cache_status.get('first_date'):
+                # No cached data, keep original values
+                updated_triggers.append(trigger)
+                continue
+
+            # Get data from cache
+            start_date = cache_status['first_date']
+            end_date = cache_status['last_date']
+
+            if isinstance(start_date, str):
+                start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00')).date()
+            elif hasattr(start_date, 'date'):
+                start_date = start_date.date()
+
+            if isinstance(end_date, str):
+                end_date = datetime.fromisoformat(end_date.replace('Z', '+00:00')).date()
+            elif hasattr(end_date, 'date'):
+                end_date = end_date.date()
+
+            try:
+                df = cache._get_from_cache(ticker, start_date, end_date)
+                if df.empty:
+                    updated_triggers.append(trigger)
+                    continue
+
+                # Build condition params
+                condition_params = {k: v for k, v in criteria.items()
+                                   if k not in ['condition_type', 'condition_tickers', 'target_ticker']}
+
+                # Find events using the same logic as main analysis
+                event_dates = []
+                if condition_type == 'rsi_above':
+                    condition_params['cross_above'] = True
+                    df_copy = df.copy()
+                    df_copy['rsi'] = compute_rsi(df_copy, condition_params.get('rsi_period', 14))
+                    threshold = condition_params.get('rsi_threshold', 70)
+                    for i in range(1, len(df_copy)):
+                        current_rsi = df_copy.iloc[i]['rsi']
+                        prev_rsi = df_copy.iloc[i-1]['rsi']
+                        if pd.notna(current_rsi) and pd.notna(prev_rsi):
+                            if prev_rsi < threshold and current_rsi >= threshold:
+                                event_date = df_copy.index[i]
+                                if not event_dates or (event_date - event_dates[-1]).days > 5:
+                                    event_dates.append(event_date)
+
+                elif condition_type == 'rsi_below':
+                    df_copy = df.copy()
+                    df_copy['rsi'] = compute_rsi(df_copy, condition_params.get('rsi_period', 14))
+                    threshold = condition_params.get('rsi_threshold', 30)
+                    for i in range(1, len(df_copy)):
+                        current_rsi = df_copy.iloc[i]['rsi']
+                        prev_rsi = df_copy.iloc[i-1]['rsi']
+                        if pd.notna(current_rsi) and pd.notna(prev_rsi):
+                            if prev_rsi > threshold and current_rsi <= threshold:
+                                event_date = df_copy.index[i]
+                                if not event_dates or (event_date - event_dates[-1]).days > 5:
+                                    event_dates.append(event_date)
+
+                elif condition_type == 'momentum_above':
+                    df_copy = df.copy()
+                    period = condition_params.get('momentum_period', 12)
+                    threshold = condition_params.get('momentum_threshold', 0.05)
+                    df_copy['momentum'] = compute_momentum(df_copy, period)
+                    for i in range(1, len(df_copy)):
+                        current_mom = df_copy.iloc[i]['momentum']
+                        prev_mom = df_copy.iloc[i-1]['momentum']
+                        if pd.notna(current_mom) and pd.notna(prev_mom):
+                            if prev_mom < threshold and current_mom >= threshold:
+                                event_date = df_copy.index[i]
+                                if not event_dates or (event_date - event_dates[-1]).days > 5:
+                                    event_dates.append(event_date)
+
+                elif condition_type == 'momentum_below':
+                    df_copy = df.copy()
+                    period = condition_params.get('momentum_period', 12)
+                    threshold = -abs(condition_params.get('momentum_threshold', 0.05))
+                    df_copy['momentum'] = compute_momentum(df_copy, period)
+                    for i in range(1, len(df_copy)):
+                        current_mom = df_copy.iloc[i]['momentum']
+                        prev_mom = df_copy.iloc[i-1]['momentum']
+                        if pd.notna(current_mom) and pd.notna(prev_mom):
+                            if prev_mom > threshold and current_mom <= threshold:
+                                event_date = df_copy.index[i]
+                                if not event_dates or (event_date - event_dates[-1]).days > 5:
+                                    event_dates.append(event_date)
+
+                # Calculate recent triggers (last 30 days)
+                today = datetime.now().date()
+                thirty_days_ago = today - timedelta(days=30)
+                recent_events = [d for d in event_dates if d.date() >= thirty_days_ago]
+
+                # Update trigger with fresh data
+                updated_trigger = trigger.copy()
+                updated_trigger['recent_trigger_count'] = len(recent_events)
+                updated_trigger['latest_trigger_date'] = (
+                    event_dates[-1].strftime('%Y-%m-%d') if event_dates else None
+                )
+                updated_triggers.append(updated_trigger)
+
+            except Exception as e:
+                logger.warning(f"Failed to refresh trigger {criteria}: {e}")
+                updated_triggers.append(trigger)
+
+        # Update the triggers file
+        triggers_data['triggers'] = updated_triggers
+        triggers_data['activity_refreshed_at'] = datetime.now().isoformat()
+
+        with open(triggers_file, 'w') as f:
+            json.dump(triggers_data, f, indent=2)
+
+        return jsonify({
+            'status': 'ok',
+            'message': f'Refreshed {len(updated_triggers)} triggers',
+            'triggers': updated_triggers,
+            'refreshed_at': triggers_data['activity_refreshed_at']
+        })
+
+    except Exception as e:
+        logger.error(f"Failed to refresh triggers: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/data_range', methods=['GET'])
+def get_data_range():
+    """Get the date range of cached data for relevant tickers."""
+    api_key = request.args.get('api_key', Config.POLYGON_API_KEY)
+
+    if not api_key:
+        return jsonify({'error': 'API key required'}), 400
+
+    cache = get_cache_manager(api_key)
+
+    # Get status for common tickers
+    tickers_to_check = ['SPY', 'QQQ', 'IWM']
+    ticker_ranges = {}
+
+    for ticker in tickers_to_check:
+        status = cache.get_cache_status(ticker)
+        if status and status.get('first_date'):
+            first_date = status['first_date']
+            last_date = status['last_date']
+
+            # Handle different date formats
+            if hasattr(first_date, 'strftime'):
+                first_date = first_date.strftime('%Y-%m-%d')
+            elif isinstance(first_date, str) and 'GMT' in first_date:
+                first_date = datetime.strptime(first_date, '%a, %d %b %Y %H:%M:%S %Z').strftime('%Y-%m-%d')
+
+            if hasattr(last_date, 'strftime'):
+                last_date = last_date.strftime('%Y-%m-%d')
+            elif isinstance(last_date, str) and 'GMT' in last_date:
+                last_date = datetime.strptime(last_date, '%a, %d %b %Y %H:%M:%S %Z').strftime('%Y-%m-%d')
+
+            ticker_ranges[ticker] = {
+                'first_date': first_date,
+                'last_date': last_date,
+                'total_bars': status.get('total_bars', 0)
+            }
+
+    # Calculate overall range
+    if ticker_ranges:
+        all_first = [r['first_date'] for r in ticker_ranges.values()]
+        all_last = [r['last_date'] for r in ticker_ranges.values()]
+        overall = {
+            'first_date': min(all_first),
+            'last_date': max(all_last)
+        }
+    else:
+        overall = None
+
+    return jsonify({
+        'status': 'ok',
+        'tickers': ticker_ranges,
+        'overall': overall,
+        'cache_enabled': Config.CACHE_ENABLED
+    })
+
+
 @app.route('/api/cache/status', methods=['GET'])
 def cache_status():
     """Get cache statistics and status."""
@@ -929,7 +1142,7 @@ def start_sp500_cache():
     if not api_key:
         return jsonify({'error': 'API key required'}), 400
 
-    start_date = data.get('start_date', '1990-01-01')
+    start_date = data.get('start_date', Config.HISTORICAL_START_DATE)
     end_date = data.get('end_date')  # None means today
 
     result = start_sp500_cache_job(api_key, start_date, end_date)

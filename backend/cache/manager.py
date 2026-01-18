@@ -21,14 +21,14 @@ class CacheManager:
     - Stores new data for future requests
     """
 
-    def __init__(self, api_key: str, fetch_func=None, rate_limit_delay: float = 0.25):
+    def __init__(self, api_key: str, fetch_func=None, rate_limit_delay: float = 0):
         """
         Initialize cache manager.
 
         Args:
             api_key: Polygon.io API key
             fetch_func: Function to fetch bars from API (for dependency injection)
-            rate_limit_delay: Delay between API calls in seconds
+            rate_limit_delay: Delay between API calls in seconds (0 = no limit)
         """
         self.api_key = api_key
         self._fetch_func = fetch_func
@@ -74,7 +74,21 @@ class CacheManager:
         if fetch_ranges:
             logger.info(f"Cache miss for {ticker}: fetching {len(fetch_ranges)} range(s)")
             for range_start, range_end in fetch_ranges:
-                self._fetch_and_store(ticker, range_start, range_end)
+                try:
+                    self._fetch_and_store(ticker, range_start, range_end)
+                except Exception as e:
+                    # If partial range fetch fails (e.g., 403 for restricted dates),
+                    # fall back to fetching the full range which Polygon handles gracefully
+                    if '403' in str(e) or 'NOT_AUTHORIZED' in str(e):
+                        logger.warning(f"Partial fetch failed for {ticker}, trying full range: {e}")
+                        try:
+                            self._fetch_and_store(ticker, start_date, end_date)
+                            break  # Full range succeeded, no need to continue with other ranges
+                        except Exception as e2:
+                            logger.error(f"Full range fetch also failed for {ticker}: {e2}")
+                            # Continue with cached data only
+                    else:
+                        raise  # Re-raise non-403 errors
         else:
             logger.debug(f"Cache hit for {ticker}: {start_date} to {end_date}")
 
@@ -209,10 +223,11 @@ class CacheManager:
         Returns:
             Count of bars stored
         """
-        # Rate limiting
-        elapsed = time.time() - self._last_api_call
-        if elapsed < self.rate_limit_delay:
-            time.sleep(self.rate_limit_delay - elapsed)
+        # Rate limiting (skip if delay is 0)
+        if self.rate_limit_delay > 0:
+            elapsed = time.time() - self._last_api_call
+            if elapsed < self.rate_limit_delay:
+                time.sleep(self.rate_limit_delay - elapsed)
 
         fetch_func = self._get_fetch_func()
 

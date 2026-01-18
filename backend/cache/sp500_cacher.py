@@ -1,6 +1,7 @@
 """S&P 500 pre-caching utilities."""
 
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Callable, Optional, Dict, List
 import time
 import logging
@@ -8,6 +9,10 @@ import threading
 
 from .db import get_connection, init_db
 from .manager import CacheManager
+
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -334,7 +339,7 @@ class SP500Cacher:
     def __init__(
         self,
         cache_manager: CacheManager,
-        rate_limit_delay: float = 12.5,  # Free tier: 5 calls/min = 12s between calls
+        rate_limit_delay: float = 0,  # No rate limiting with unlimited API calls
         on_progress: Optional[Callable[[int, int, str], None]] = None
     ):
         """
@@ -342,7 +347,7 @@ class SP500Cacher:
 
         Args:
             cache_manager: CacheManager instance
-            rate_limit_delay: Delay between API calls in seconds (default 12.5s for free tier)
+            rate_limit_delay: Delay between API calls in seconds (0 = no limit)
             on_progress: Optional callback(processed, total, ticker) for progress updates
         """
         self.cache_manager = cache_manager
@@ -413,8 +418,8 @@ class SP500Cacher:
             if (i + 1) % 50 == 0:
                 logger.info(f"S&P 500 caching progress: {i + 1}/{len(tickers)}")
 
-            # Rate limit delay between requests
-            if i < len(tickers) - 1:  # Don't delay after last ticker
+            # Rate limit delay between requests (skip if delay is 0)
+            if self.rate_limit_delay > 0 and i < len(tickers) - 1:
                 time.sleep(self.rate_limit_delay)
 
         duration = time.time() - start_time
@@ -640,7 +645,7 @@ def run_sp500_cache_job(
 
 def start_sp500_cache_job(
     api_key: str,
-    start_date: str = '1990-01-01',
+    start_date: str = None,  # Defaults to Config.HISTORICAL_START_DATE
     end_date: str = None
 ) -> Dict:
     """
@@ -657,6 +662,8 @@ def start_sp500_cache_job(
             'message': 'A caching job is already running'
         }
 
+    if start_date is None:
+        start_date = Config.HISTORICAL_START_DATE
     if end_date is None:
         end_date = date.today().isoformat()
 
