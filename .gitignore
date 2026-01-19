@@ -42,3 +42,10 @@ logs/
 # Cache database
 backend/data/price_cache.db
 backend/data/*.db
+
+# Backup files
+*.backup
+
+# Excel/data files
+*.xlsx
+*.xls
