@@ -727,6 +727,7 @@ def compute_average_forward_curve(target_df, event_dates, days=252):
 
     # Compute statistics at each day, ignoring None values
     avg_curve = []
+    median_curve = []
     max_curve = []
     min_curve = []
     std_curve = []
@@ -738,6 +739,14 @@ def compute_average_forward_curve(target_df, event_dates, days=252):
             avg_curve.append(round(avg_val, 2))
             max_curve.append(round(max(values), 2))
             min_curve.append(round(min(values), 2))
+            # Median
+            sorted_vals = sorted(values)
+            n = len(sorted_vals)
+            if n % 2 == 0:
+                median_val = (sorted_vals[n//2 - 1] + sorted_vals[n//2]) / 2
+            else:
+                median_val = sorted_vals[n//2]
+            median_curve.append(round(median_val, 2))
             # Standard deviation
             if len(values) > 1:
                 variance = sum((v - avg_val) ** 2 for v in values) / len(values)
@@ -746,12 +755,14 @@ def compute_average_forward_curve(target_df, event_dates, days=252):
                 std_curve.append(0)
         else:
             avg_curve.append(None)
+            median_curve.append(None)
             max_curve.append(None)
             min_curve.append(None)
             std_curve.append(None)
 
     return {
         'avg': avg_curve,
+        'median': median_curve,
         'max': max_curve,
         'min': min_curve,
         'std': std_curve

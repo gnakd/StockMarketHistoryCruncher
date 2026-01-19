@@ -39,6 +39,23 @@ function ForwardReturnsChart({ data, title }) {
       order: 1
     });
 
+    // Median line (thinner dotted green)
+    if (curveData.median) {
+      datasets.push({
+        label: 'Median Return',
+        data: curveData.median,
+        borderColor: 'rgba(40, 167, 69, 0.7)',
+        backgroundColor: 'transparent',
+        borderWidth: 1.5,
+        borderDash: [2, 2],
+        pointRadius: 0,
+        pointHoverRadius: 3,
+        fill: false,
+        tension: 0.1,
+        order: 1
+      });
+    }
+
     if (showBands && bandType === 'minmax' && curveData.max && curveData.min) {
       // Max gains line (dashed)
       datasets.push({
