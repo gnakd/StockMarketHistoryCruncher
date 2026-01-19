@@ -10,6 +10,43 @@ from .db import get_connection, init_db, get_db_path
 
 logger = logging.getLogger(__name__)
 
+# US market holidays (month, day) - fixed holidays only
+# Floating holidays (Thanksgiving, etc.) would need year-specific logic
+US_MARKET_HOLIDAYS = {
+    (1, 1),   # New Year's Day
+    (1, 20),  # MLK Day (approximate - 3rd Monday)
+    (2, 17),  # Presidents Day (approximate - 3rd Monday)
+    (7, 4),   # Independence Day
+    (12, 25), # Christmas
+}
+
+
+def get_last_trading_day(d: date = None) -> date:
+    """
+    Get the last trading day on or before the given date.
+    Skips weekends and known holidays.
+    """
+    if d is None:
+        d = date.today()
+
+    # Don't go into the future
+    today = date.today()
+    if d > today:
+        d = today
+
+    # Skip weekends (Saturday=5, Sunday=6)
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+
+    # Skip known holidays
+    while (d.month, d.day) in US_MARKET_HOLIDAYS:
+        d -= timedelta(days=1)
+        # Check weekend again
+        while d.weekday() >= 5:
+            d -= timedelta(days=1)
+
+    return d
+
 
 class CacheManager:
     """
@@ -165,7 +202,15 @@ class CacheManager:
         Determine what date ranges need to be fetched from API.
 
         Returns list of (start, end) tuples for ranges not in cache.
+        Skips weekends and holidays to avoid unnecessary API calls.
         """
+        # Cap end_date to last trading day (skip weekends/holidays/future)
+        end_date = get_last_trading_day(end_date)
+
+        # If start > end after adjustment, nothing to fetch
+        if start_date > end_date:
+            return []
+
         with get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -192,7 +237,13 @@ class CacheManager:
             # Need later data?
             if end_date > cached_last:
                 # Fetch from day after cached end
-                ranges.append((cached_last + timedelta(days=1), end_date))
+                fetch_start = cached_last + timedelta(days=1)
+                # Skip to next trading day for fetch start
+                while fetch_start.weekday() >= 5:
+                    fetch_start += timedelta(days=1)
+                # Only add range if there's actually a gap
+                if fetch_start <= end_date:
+                    ranges.append((fetch_start, end_date))
 
             return ranges
 
