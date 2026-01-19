@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-function RecentTriggers({ onSelectTrigger }) {
+function RecentTriggers({ onSelectTrigger, apiKey }) {
   const [triggers, setTriggers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expanded, setExpanded] = useState(true);
+  const [dataRange, setDataRange] = useState(null);
 
   useEffect(() => {
     fetchTriggers();
-  }, []);
+    fetchDataRange();
+  }, [apiKey]);
 
   const fetchTriggers = async () => {
     setLoading(true);
@@ -37,6 +39,18 @@ function RecentTriggers({ onSelectTrigger }) {
       setTriggers([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchDataRange = async () => {
+    try {
+      const params = apiKey ? { api_key: apiKey } : {};
+      const response = await axios.get('/api/data_range', { params });
+      if (response.data.status === 'ok') {
+        setDataRange(response.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch data range:', err);
     }
   };
 
@@ -149,7 +163,12 @@ function RecentTriggers({ onSelectTrigger }) {
             </div>
           ) : triggers.length === 0 ? (
             <div className="alert alert-secondary m-3 mb-0">
-              No criteria have triggered in the past 30 days. Run a discovery to find active triggers.
+              No criteria have triggered in the past 30 days.
+              {dataRange?.overall && (
+                <small className="d-block mt-1 text-muted">
+                  Data available: {dataRange.overall.first_date} to {dataRange.overall.last_date}
+                </small>
+              )}
             </div>
           ) : (
             <div className="table-responsive" style={{ maxHeight: '250px', overflowY: 'auto' }}>

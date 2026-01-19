@@ -14,6 +14,18 @@ function App() {
   const [results, setResults] = useState(null);
   const [formData, setFormData] = useState(null);
   const [selectedTrigger, setSelectedTrigger] = useState(null);
+  const [apiKey, setApiKey] = useState(() => {
+    // Load from localStorage if available
+    return localStorage.getItem('polygon_api_key') || '';
+  });
+
+  // Persist API key to localStorage
+  const handleApiKeyChange = useCallback((key) => {
+    setApiKey(key);
+    if (key) {
+      localStorage.setItem('polygon_api_key', key);
+    }
+  }, []);
 
   const handleSubmit = useCallback(async (data) => {
     setLoading(true);
@@ -76,10 +88,10 @@ function App() {
 
       <div className="container pb-5">
         {/* Recent Triggers - criteria that fired in the past 30 days */}
-        <RecentTriggers onSelectTrigger={handleSelectTrigger} />
+        <RecentTriggers onSelectTrigger={handleSelectTrigger} apiKey={apiKey} />
 
         {/* All Discovered Triggers */}
-        <DiscoveredTriggers onSelectTrigger={handleSelectTrigger} />
+        <DiscoveredTriggers onSelectTrigger={handleSelectTrigger} apiKey={apiKey} />
 
         {/* Input Form */}
         <div className="card">
@@ -92,6 +104,8 @@ function App() {
               loading={loading}
               selectedTrigger={selectedTrigger}
               onTriggerApplied={() => setSelectedTrigger(null)}
+              apiKey={apiKey}
+              onApiKeyChange={handleApiKeyChange}
             />
           </div>
         </div>
