@@ -70,7 +70,7 @@ function App() {
       'ma_crossunder': `${condition_params.ma_short || 50}MA crosses below ${condition_params.ma_long || 200}MA on ${condition_tickers[0]}`,
       'momentum_above': `Momentum > ${(condition_params.momentum_threshold || 0.05) * 100}% on ${condition_tickers[0]}`,
       'momentum_below': `Momentum < ${(condition_params.momentum_threshold || -0.05) * 100}% on ${condition_tickers[0]}`,
-      'sp500_pct_below_200ma': `S&P 500 % below 200 DMA drops to ≤${condition_params.breadth_threshold || 30}%`
+      'sp500_pct_above_200ma': `S&P 500 % above 200 DMA drops to ≤${condition_params.breadth_threshold || 30}%`
     };
 
     return `${target_ticker}: ${conditionNames[condition_type] || condition_type}`;

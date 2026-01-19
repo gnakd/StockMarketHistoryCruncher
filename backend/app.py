@@ -9,6 +9,7 @@ import logging
 from config import Config
 from cache.putcall_ratio import get_putcall_manager, PutCallRatioManager
 from cache.vix import get_vix_manager, VIXManager
+from cache.sp500_history import get_sp500_constituents_range, get_sp500_constituents_for_date
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -254,32 +255,69 @@ def get_sp500_constituents():
     ]
 
 
-def compute_breadth_pct_below_200ma(ticker_data_dict, target_df):
+def compute_breadth_pct_above_200ma(ticker_data_dict, target_df, membership_dict=None):
     """
-    Compute the percentage of stocks below their 200-day moving average.
-    Returns a DataFrame aligned to target_df dates with pct_below_200ma column.
+    Compute the percentage of stocks above their 200-day moving average.
+    Returns a DataFrame aligned to target_df dates with pct_above_200ma column.
+
+    Args:
+        ticker_data_dict: Dict of ticker -> DataFrame with price data
+        target_df: Target ticker DataFrame for date alignment
+        membership_dict: Optional dict of ticker -> {'start': date, 'end': date}
+                        If provided, only counts stocks that were in S&P 500 on each date
     """
     # First, compute 200 DMA for each stock
-    stock_below_200ma = {}
+    stock_above_200ma = {}
 
     for ticker, df in ticker_data_dict.items():
         if len(df) < 200:
             continue
         df = df.copy()
         df['sma_200'] = df['close'].rolling(window=200).mean()
-        df['below_200ma'] = df['close'] < df['sma_200']
-        stock_below_200ma[ticker] = df['below_200ma']
+        df['above_200ma'] = df['close'] > df['sma_200']
+        stock_above_200ma[ticker] = df['above_200ma']
 
-    if not stock_below_200ma:
+    if not stock_above_200ma:
         return pd.DataFrame()
 
     # Combine all into a single DataFrame
-    combined = pd.DataFrame(stock_below_200ma)
+    combined = pd.DataFrame(stock_above_200ma)
 
-    # For each date, compute % of stocks below 200 DMA
-    breadth_series = combined.sum(axis=1) / combined.count(axis=1) * 100
+    if membership_dict:
+        # Point-in-time calculation: only count stocks that were in S&P 500 on each date
+        breadth_values = []
+        for idx_date in combined.index:
+            check_date = idx_date.date() if hasattr(idx_date, 'date') else idx_date
 
-    breadth_df = pd.DataFrame({'pct_below_200ma': breadth_series})
+            # Get stocks that were in S&P 500 on this date
+            active_tickers = []
+            for ticker, membership in membership_dict.items():
+                if ticker in combined.columns:
+                    start = membership['start']
+                    end = membership['end']
+                    if start <= check_date and (end is None or check_date <= end):
+                        active_tickers.append(ticker)
+
+            if active_tickers:
+                # Only count active S&P 500 members
+                row = combined.loc[idx_date, active_tickers]
+                # Convert to numeric to handle object dtype (booleans stored as objects)
+                row_numeric = pd.to_numeric(row, errors='coerce')
+                valid_count = row_numeric.count()
+                if valid_count > 0:
+                    pct_above = row_numeric.sum() / valid_count * 100
+                    breadth_values.append(pct_above)
+                else:
+                    breadth_values.append(None)
+            else:
+                breadth_values.append(None)
+
+        breadth_series = pd.Series(breadth_values, index=combined.index)
+    else:
+        # Simple calculation: count all stocks (legacy behavior)
+        breadth_series = combined.sum(axis=1) / combined.count(axis=1) * 100
+
+    breadth_df = pd.DataFrame({'pct_above_200ma': breadth_series})
 
     # Align to target_df dates
     breadth_df = breadth_df.reindex(target_df.index, method='ffill')
@@ -287,16 +325,19 @@ def compute_breadth_pct_below_200ma(ticker_data_dict, target_df):
     return breadth_df
 
 
-def find_breadth_below_threshold_events(breadth_df, params):
+def find_breadth_threshold_events(breadth_df, params):
     """
-    Find dates where % of stocks below 200 DMA falls at or below threshold.
-    Triggers when breadth drops to or below the threshold from above.
+    Find dates where % of stocks above 200 DMA drops to or below threshold.
+    Triggers when breadth crosses DOWN through the threshold (fear/panic signal).
+
+    Low % above 200 DMA = weak market breadth = contrarian buy signal
+    Example: threshold=30 triggers when only 30% of stocks are above their 200 DMA
     """
     threshold = params.get('breadth_threshold', 30)  # Default 30%
 
     events = []
 
-    pct_col = breadth_df['pct_below_200ma']
+    pct_col = breadth_df['pct_above_200ma']
 
     for i in range(1, len(breadth_df)):
         date = breadth_df.index[i]
@@ -306,7 +347,7 @@ def find_breadth_below_threshold_events(breadth_df, params):
         if pd.isna(current_pct) or pd.isna(prev_pct):
             continue
 
-        # Trigger when crossing at or below threshold from above
+        # Trigger when % above drops below threshold (fewer stocks above 200 DMA = fear)
         if prev_pct > threshold and current_pct <= threshold:
             if not events or (date - events[-1]).days > 5:
                 events.append(date)
@@ -822,7 +863,7 @@ def fetch_data():
             return jsonify({'error': 'Polygon API key is required'}), 400
 
         # Some conditions don't require condition tickers
-        no_ticker_conditions = ['sp500_pct_below_200ma', 'putcall_above', 'putcall_below', 'vix_above', 'vix_below']
+        no_ticker_conditions = ['sp500_pct_above_200ma', 'putcall_above', 'putcall_below', 'vix_above', 'vix_below']
         if not condition_tickers and condition_type not in no_ticker_conditions:
             return jsonify({'error': 'At least one condition ticker is required'}), 400
 
@@ -889,18 +930,26 @@ def fetch_data():
         elif condition_type == 'vix_below':
             # Low VIX = complacency = potential caution signal
             event_dates = find_vix_events(start_date, end_date, condition_params, cross_above=False)
-        elif condition_type == 'sp500_pct_below_200ma':
-            # Fetch data for all S&P 500 constituents
-            sp500_tickers = get_sp500_constituents()
+        elif condition_type == 'sp500_pct_above_200ma':
+            # Fetch data for all S&P 500 constituents using historical membership
+            # This avoids survivorship bias by only including stocks that were in S&P 500 at each point in time
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+            membership_dict = get_sp500_constituents_range(start_date_obj, end_date_obj)
+            sp500_tickers = list(membership_dict.keys())
+            logger.info(f"Historical S&P 500: {len(sp500_tickers)} unique tickers in range {start_date} to {end_date}")
             sp500_data = {}
             failed_tickers = []
             rate_limit_hits = 0
+
+            # Extend fetch start date by 300 calendar days to have enough data for 200 DMA calculation
+            extended_start = (start_date_obj - timedelta(days=300)).isoformat()
 
             # Fetch data for each constituent with rate limiting
             # Cache manager handles rate limiting, but we still handle errors
             for i, ticker in enumerate(sp500_tickers):
                 try:
-                    bars = fetch_aggregate_bars_cached(ticker, start_date, end_date, api_key)
+                    bars = fetch_aggregate_bars_cached(ticker, extended_start, end_date, api_key)
                     if bars:
                         sp500_data[ticker] = bars_to_dataframe(bars)
                 except Exception as e:
@@ -931,14 +980,14 @@ def fetch_data():
                     error_msg += f' Hit rate limit {rate_limit_hits} times. Consider using a paid Polygon.io plan for this feature.'
                 return jsonify({'error': error_msg}), 400
 
-            # Compute breadth
-            breadth_df = compute_breadth_pct_below_200ma(sp500_data, target_df)
+            # Compute breadth (% of stocks above 200 DMA) using point-in-time S&P 500 membership
+            breadth_df = compute_breadth_pct_above_200ma(sp500_data, target_df, membership_dict)
 
             if breadth_df.empty:
                 return jsonify({'error': 'Could not compute breadth data'}), 400
 
-            # Find events
-            event_dates = find_breadth_below_threshold_events(breadth_df, condition_params)
+            # Find events (triggers when % above drops below threshold)
+            event_dates = find_breadth_threshold_events(breadth_df, condition_params)
         else:
             return jsonify({'error': f'Unknown condition type: {condition_type}'}), 400
 

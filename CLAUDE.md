@@ -10,6 +10,16 @@ Analyzes historical market performance after trigger conditions. Integrates with
 
 ## Recent Changes (2026-01-18)
 
+### Historical S&P 500 Constituent Tracking (NEW)
+- Fixed survivorship bias in S&P 500 breadth calculations
+- Tracks which stocks were in S&P 500 on any given historical date
+- Data source: https://github.com/fja05680/sp500 (membership start/end dates)
+- `get_sp500_constituents_for_date(date)` - returns list of tickers for a specific date
+- `get_sp500_constituents_range(start, end)` - returns all tickers with membership periods
+- `compute_breadth_pct_below_200ma()` now uses point-in-time membership
+- New file: `backend/cache/sp500_history.py`
+- Auto-downloads and caches data with 7-day refresh
+
 ### VIX Trigger (NEW)
 - Added `vix_above` and `vix_below` condition types
 - Historical data from FRED (1990-present, ~9100 records)
