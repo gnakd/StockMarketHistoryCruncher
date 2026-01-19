@@ -695,7 +695,14 @@ def compute_forward_returns(target_df, event_dates, intervals):
 
 
 def compute_average_forward_curve(target_df, event_dates, days=252):
-    """Compute average forward returns curve aligned by trading days"""
+    """Compute forward returns statistics curve aligned by trading days.
+
+    Returns a dict with:
+    - avg: average return at each day
+    - max: maximum return at each day (best case)
+    - min: minimum return at each day (worst case)
+    - std: standard deviation at each day
+    """
     curves = []
 
     for event_date in event_dates:
@@ -718,16 +725,37 @@ def compute_average_forward_curve(target_df, event_dates, days=252):
 
         curves.append(curve)
 
-    # Compute average, ignoring None values
+    # Compute statistics at each day, ignoring None values
     avg_curve = []
+    max_curve = []
+    min_curve = []
+    std_curve = []
+
     for d in range(days + 1):
         values = [c[d] for c in curves if c[d] is not None]
         if values:
-            avg_curve.append(round(sum(values) / len(values), 2))
+            avg_val = sum(values) / len(values)
+            avg_curve.append(round(avg_val, 2))
+            max_curve.append(round(max(values), 2))
+            min_curve.append(round(min(values), 2))
+            # Standard deviation
+            if len(values) > 1:
+                variance = sum((v - avg_val) ** 2 for v in values) / len(values)
+                std_curve.append(round(variance ** 0.5, 2))
+            else:
+                std_curve.append(0)
         else:
             avg_curve.append(None)
+            max_curve.append(None)
+            min_curve.append(None)
+            std_curve.append(None)
 
-    return avg_curve
+    return {
+        'avg': avg_curve,
+        'max': max_curve,
+        'min': min_curve,
+        'std': std_curve
+    }
 
 
 def compute_statistics(event_results, intervals):

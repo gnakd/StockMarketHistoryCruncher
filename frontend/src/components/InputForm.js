@@ -35,14 +35,37 @@ const DEFAULT_PARAMS = {
 function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied, apiKey, onApiKeyChange }) {
   const [conditionTickers, setConditionTickers] = useState(['^DJI', '^DJT']);
   const [targetTicker, setTargetTicker] = useState('^GSPC');
-  const [startDate, setStartDate] = useState('2024-01-15');
+  const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [conditionType, setConditionType] = useState('dual_ath');
   const [conditionParams, setConditionParams] = useState(DEFAULT_PARAMS.dual_ath);
   const [tickerInput, setTickerInput] = useState('');
+  const [dataRangeLoaded, setDataRangeLoaded] = useState(false);
 
   // Track if we just applied a trigger to prevent param reset
   const [triggerApplied, setTriggerApplied] = React.useState(false);
+
+  // Fetch earliest available date from cache on mount
+  useEffect(() => {
+    if (!apiKey || dataRangeLoaded) return;
+
+    fetch(`/api/data_range?api_key=${encodeURIComponent(apiKey)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.overall && data.overall.first_date) {
+          setStartDate(data.overall.first_date);
+        } else {
+          // Fallback if no cached data
+          setStartDate('2016-01-18');
+        }
+        setDataRangeLoaded(true);
+      })
+      .catch(() => {
+        // Fallback on error
+        setStartDate('2016-01-18');
+        setDataRangeLoaded(true);
+      });
+  }, [apiKey, dataRangeLoaded]);
 
   // Apply selected trigger from DiscoveredTriggers component
   useEffect(() => {

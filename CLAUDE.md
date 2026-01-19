@@ -64,14 +64,10 @@ There are other modified files not yet committed:
 - Bearish: momentum_below (if used as sell signal), ma_crossunder
 - Display in UI with color-coded badges (green/red)
 
-### 2. Scoring Documentation
-- Add link to documentation explaining how trigger scores are calculated
-- Document the 0-100 scoring formula:
-  - Return score: 30% weight (capped at 40% annual return)
-  - Win rate score: 30% weight
-  - Sharpe ratio: 25% weight (capped at 2.5)
-  - Statistical significance: 15% weight (30+ events = full credit)
-- Add to `/docs/condition-types.html` or create separate `/docs/scoring.html`
+### 2. Scoring Documentation - DONE
+- Created `/docs/scoring.html` with detailed scoring formula documentation
+- Added link from `/docs/condition-types.html` to scoring docs
+- Documents all four components: Return (30%), Win Rate (30%), Sharpe (25%), Significance (15%)
 
 ### 3. YCharts Put/Call Ratio Data
 - Explore scraping put/call ratio data from YCharts
@@ -90,18 +86,19 @@ The conservative scoring plan was implemented but reverted. If re-implementing:
 ### 5. Review Unstaged Changes
 Several frontend files have modifications - review and commit or discard.
 
-### 6. Dynamic Start Date Based on Available Data
-- Update the default Start Date to the earliest available data for SPY, QQQ, IWM
-- Query cache to find the furthest back date with data for each ticker
-- Set form default to the oldest common date across selected tickers
-- Currently hardcoded to 2016-01-18 (10-year Polygon subscription)
+### 6. Dynamic Start Date Based on Available Data - DONE
+- InputForm now fetches `/api/data_range` on mount to get earliest cached date
+- Start date defaults to `overall.first_date` from the API response
+- Falls back to 2016-01-18 if no cached data or API error
 
-### 7. Enhanced Forward Returns Chart
-- Add series showing **maximum drawdowns** at each time interval
-- Add series showing **maximum positive gains** at each time interval
-- Consider adding **standard deviation bands** (e.g., +/- 1 std dev)
-- Would help visualize the range of outcomes, not just the average
-- Could use shaded area or dashed lines for the bands
+### 7. Enhanced Forward Returns Chart - DONE
+- Backend `compute_average_forward_curve` now returns `{avg, max, min, std}` for each day
+- Frontend chart shows:
+  - Best Case (dashed green) - maximum return at each day
+  - Worst Case (dashed red) - minimum return at each day
+  - Shaded area between min/max for visual range
+  - Toggle buttons to show/hide bands and switch between Min/Max vs ±1 Std Dev views
+- Backward compatible with old array format
 
 ### 8. Future Ideas
 - Real-time trigger alerts/notifications

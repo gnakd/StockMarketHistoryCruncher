@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trigger Scoring - Stock Market History Cruncher</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding: 2rem; max-width: 900px; margin: 0 auto; }
+        .formula-box {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 1.5rem;
+            border-radius: 8px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            overflow-x: auto;
+        }
+        .formula-box .keyword { color: #569cd6; }
+        .formula-box .function { color: #dcdcaa; }
+        .formula-box .number { color: #b5cea8; }
+        .formula-box .comment { color: #6a9955; }
+        .component-card {
+            background: #f8f9fa;
+            border-left: 4px solid #0d6efd;
+            padding: 1rem 1.5rem;
+            margin-bottom: 1rem;
+            border-radius: 0 4px 4px 0;
+        }
+        .component-card.return { border-left-color: #28a745; }
+        .component-card.winrate { border-left-color: #17a2b8; }
+        .component-card.sharpe { border-left-color: #ffc107; }
+        .component-card.significance { border-left-color: #6c757d; }
+        .weight-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .weight-30 { background: #d4edda; color: #155724; }
+        .weight-25 { background: #fff3cd; color: #856404; }
+        .weight-15 { background: #e2e3e5; color: #383d41; }
+        h1 { margin-bottom: 1.5rem; }
+        h3 { color: #495057; margin-top: 2rem; }
+        .example-table td, .example-table th { text-align: center; }
+        .score-tier { padding: 0.5rem 1rem; border-radius: 4px; margin-bottom: 0.5rem; }
+        .tier-exceptional { background: linear-gradient(135deg, #28a745, #20c997); color: white; }
+        .tier-strong { background: #28a745; color: white; }
+        .tier-good { background: #17a2b8; color: white; }
+        .tier-weak { background: #6c757d; color: white; }
+    </style>
+</head>
+<body>
+    <h1>Trigger Scoring System</h1>
+    <p class="lead">
+        Every discovered trigger is scored on a 0-100 scale to help you identify the most reliable market signals.
+        This page explains exactly how scores are calculated.
+    </p>
+
+    <hr>
+
+    <h3>The Formula</h3>
+    <p>The score is a weighted sum of four normalized components:</p>
+
+    <div class="formula-box">
+        <span class="comment"># Each component is normalized to 0-1, then weighted</span><br><br>
+        <span class="function">return_score</span> = <span class="function">min</span>(avg_return / <span class="number">0.40</span>, <span class="number">1.0</span>) &times; <span class="number">30</span><br>
+        <span class="function">winrate_score</span> = win_rate &times; <span class="number">30</span><br>
+        <span class="function">sharpe_score</span> = <span class="function">min</span>(sharpe / <span class="number">2.5</span>, <span class="number">1.0</span>) &times; <span class="number">25</span><br>
+        <span class="function">significance_score</span> = <span class="function">min</span>(num_events / <span class="number">30</span>, <span class="number">1.0</span>) &times; <span class="number">15</span><br><br>
+        <span class="keyword">total_score</span> = return_score + winrate_score + sharpe_score + significance_score
+    </div>
+
+    <hr>
+
+    <h3>Score Components</h3>
+
+    <div class="component-card return">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">1. Average Return</h5>
+            <span class="weight-badge weight-30">30 points max</span>
+        </div>
+        <p><strong>What it measures:</strong> The average 1-year forward return after the trigger fires.</p>
+        <p><strong>Formula:</strong> <code>min(avg_return / 0.40, 1.0) &times; 30</code></p>
+        <p><strong>How it works:</strong></p>
+        <ul>
+            <li>Returns are capped at 40% for scoring purposes (prevents outliers from dominating)</li>
+            <li>A trigger with 20% average return scores 15 points (20% / 40% &times; 30)</li>
+            <li>A trigger with 40%+ average return scores the full 30 points</li>
+        </ul>
+        <table class="table table-sm example-table mt-3">
+            <thead><tr><th>Avg Return</th><th>Points</th></tr></thead>
+            <tbody>
+                <tr><td>10%</td><td>7.5</td></tr>
+                <tr><td>20%</td><td>15</td></tr>
+                <tr><td>30%</td><td>22.5</td></tr>
+                <tr><td>40%+</td><td>30 (max)</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="component-card winrate">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">2. Win Rate</h5>
+            <span class="weight-badge weight-30">30 points max</span>
+        </div>
+        <p><strong>What it measures:</strong> The percentage of times the trigger resulted in a positive 1-year return.</p>
+        <p><strong>Formula:</strong> <code>win_rate &times; 30</code></p>
+        <p><strong>How it works:</strong></p>
+        <ul>
+            <li>Win rate is already a 0-1 value (e.g., 0.85 = 85%)</li>
+            <li>Directly multiplied by 30 to get points</li>
+            <li>A minimum win rate of 70% is required to be included in discovered triggers</li>
+        </ul>
+        <table class="table table-sm example-table mt-3">
+            <thead><tr><th>Win Rate</th><th>Points</th></tr></thead>
+            <tbody>
+                <tr><td>70%</td><td>21</td></tr>
+                <tr><td>80%</td><td>24</td></tr>
+                <tr><td>90%</td><td>27</td></tr>
+                <tr><td>100%</td><td>30 (max)</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="component-card sharpe">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">3. Sharpe-like Ratio</h5>
+            <span class="weight-badge weight-25">25 points max</span>
+        </div>
+        <p><strong>What it measures:</strong> Risk-adjusted return quality (return per unit of volatility).</p>
+        <p><strong>Formula:</strong> <code>min(sharpe / 2.5, 1.0) &times; 25</code></p>
+        <p><strong>How it works:</strong></p>
+        <ul>
+            <li>Calculated as: <code>average_return / standard_deviation_of_returns</code></li>
+            <li>Higher Sharpe = more consistent returns relative to their volatility</li>
+            <li>Capped at 2.5 (a very high Sharpe ratio)</li>
+            <li>A Sharpe of 1.0 is considered good; 2.0+ is excellent</li>
+        </ul>
+        <table class="table table-sm example-table mt-3">
+            <thead><tr><th>Sharpe Ratio</th><th>Points</th></tr></thead>
+            <tbody>
+                <tr><td>0.5</td><td>5</td></tr>
+                <tr><td>1.0</td><td>10</td></tr>
+                <tr><td>1.5</td><td>15</td></tr>
+                <tr><td>2.0</td><td>20</td></tr>
+                <tr><td>2.5+</td><td>25 (max)</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="component-card significance">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">4. Statistical Significance</h5>
+            <span class="weight-badge weight-15">15 points max</span>
+        </div>
+        <p><strong>What it measures:</strong> How many times the trigger has fired (sample size).</p>
+        <p><strong>Formula:</strong> <code>min(num_events / 30, 1.0) &times; 15</code></p>
+        <p><strong>How it works:</strong></p>
+        <ul>
+            <li>More events = more confidence the pattern is real, not random</li>
+            <li>30+ events = full credit</li>
+            <li>A minimum of 5 events is required for a trigger to be considered</li>
+            <li>This component prevents over-fitting to rare events</li>
+        </ul>
+        <table class="table table-sm example-table mt-3">
+            <thead><tr><th>Events</th><th>Points</th></tr></thead>
+            <tbody>
+                <tr><td>5</td><td>2.5</td></tr>
+                <tr><td>10</td><td>5</td></tr>
+                <tr><td>20</td><td>10</td></tr>
+                <tr><td>30+</td><td>15 (max)</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <hr>
+
+    <h3>Score Interpretation</h3>
+    <p>Use these tiers to quickly assess trigger quality:</p>
+
+    <div class="score-tier tier-exceptional">
+        <strong>90-100: Exceptional</strong> - Rare. High return, high win rate, consistent, well-tested.
+    </div>
+    <div class="score-tier tier-strong">
+        <strong>75-89: Strong</strong> - Reliable triggers with good historical performance.
+    </div>
+    <div class="score-tier tier-good">
+        <strong>60-74: Good</strong> - Solid signals worth considering, may have trade-offs.
+    </div>
+    <div class="score-tier tier-weak">
+        <strong>Below 60: Weak</strong> - Filtered out. Low confidence or poor risk/reward.
+    </div>
+
+    <hr>
+
+    <h3>Example Calculation</h3>
+    <p>Let's walk through a real example:</p>
+
+    <div class="card">
+        <div class="card-header"><strong>SPY RSI(14) Crosses Above 70</strong></div>
+        <div class="card-body">
+            <table class="table table-bordered">
+                <tbody>
+                    <tr>
+                        <td>Average 1-year Return</td>
+                        <td>14%</td>
+                        <td><code>min(0.14 / 0.40, 1.0) &times; 30</code></td>
+                        <td><strong>10.5 points</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Win Rate</td>
+                        <td>85%</td>
+                        <td><code>0.85 &times; 30</code></td>
+                        <td><strong>25.5 points</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Sharpe-like Ratio</td>
+                        <td>1.2</td>
+                        <td><code>min(1.2 / 2.5, 1.0) &times; 25</code></td>
+                        <td><strong>12 points</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Event Count</td>
+                        <td>45</td>
+                        <td><code>min(45 / 30, 1.0) &times; 15</code></td>
+                        <td><strong>15 points</strong></td>
+                    </tr>
+                    <tr class="table-primary">
+                        <td colspan="3"><strong>Total Score</strong></td>
+                        <td><strong>63 points</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <hr>
+
+    <h3>Minimum Thresholds</h3>
+    <p>To be included in discovered triggers, a signal must meet these minimums:</p>
+    <ul>
+        <li><strong>At least 5 events</strong> - Need enough data points</li>
+        <li><strong>70%+ win rate</strong> - Must be reliable</li>
+        <li><strong>8%+ average return</strong> - Must outperform buy-and-hold</li>
+        <li><strong>55+ score</strong> - Must pass overall quality bar</li>
+    </ul>
+
+    <hr>
+
+    <h3>Design Philosophy</h3>
+    <p>The scoring system is designed with these principles:</p>
+    <ul>
+        <li><strong>Balance return and reliability:</strong> Both get equal 30% weight. A 100% return with 50% win rate isn't better than 15% return with 90% win rate.</li>
+        <li><strong>Reward consistency:</strong> The Sharpe component (25%) ensures triggers with wild variance are penalized.</li>
+        <li><strong>Require evidence:</strong> The significance component (15%) prevents overfitting to 3-4 lucky events.</li>
+        <li><strong>Cap extremes:</strong> Returns capped at 40%, Sharpe at 2.5, events at 30. This prevents outliers from distorting scores.</li>
+    </ul>
+
+    <hr>
+
+    <p class="text-muted">
+        <a href="/docs/condition-types.html">&larr; Condition Types</a> |
+        <a href="/">Back to Application</a>
+    </p>
+</body>
+</html>
