@@ -111,7 +111,35 @@ Several frontend files have modifications - review and commit or discard.
   - Toggle buttons to show/hide bands and switch between Min/Max vs ±1 Std Dev views
 - Backward compatible with old array format
 
-### 8. Future Ideas
+### 8. Created Triggers Table
+- Add a "Created Triggers" table similar to the "Discovered Triggers" table
+- Display triggers from the Condition Type dropdown (user-configured triggers)
+- Allow users to save/name their custom trigger configurations
+- Show same metrics as Discovered Triggers: score, events, avg return, win rate, etc.
+- Persist saved triggers (localStorage or backend)
+
+### 9. Rolling Period Return Trigger (Wayne Whaley Style)
+- Add condition type for measuring forward returns based on historic rolling period performance
+- Inspired by Wayne Whaley's seasonal analysis (e.g., Turn-of-Year Barometer)
+- Parameters:
+  - Period start (month/day, e.g., November 19)
+  - Period end (month/day, e.g., January 19)
+  - Return threshold (e.g., >3%)
+- Example: "Turn-of-Year Barometer" - if Nov 19 to Jan 19 return exceeds 3%, S&P 500 was up 12 months later almost every time
+- Could support multiple preset periods (Turn-of-Year, January Barometer, Santa Claus Rally, etc.)
+- Calculate historical instances and forward returns for each year
+
+### 10. New Highs Minus New Lows Trigger
+- Add condition type based on NYSE/S&P 500 new 52-week highs minus new 52-week lows
+- Classic market breadth indicator showing underlying market health
+- Parameters:
+  - Threshold (e.g., drops below -500, or rises above +500)
+  - Smoothing period (optional moving average)
+- Extreme negative readings = capitulation/fear = contrarian buy signal
+- Extreme positive readings = broad participation = bullish confirmation
+- Data sources: Could calculate from S&P 500 constituent data already cached, or fetch from external source
+
+### 11. Future Ideas
 - Real-time trigger alerts/notifications
 - Trigger comparison view (overlay multiple triggers on same chart)
 - Backtest date range selector in UI
