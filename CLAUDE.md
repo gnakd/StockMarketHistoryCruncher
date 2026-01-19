@@ -58,11 +58,12 @@ There are other modified files not yet committed:
 
 ## Next Session TODO
 
-### 1. Bullish vs Bearish Trigger Distinction
-- Add a field to categorize triggers as "Bullish" or "Bearish"
-- Bullish: momentum_above, rsi_above, ma_crossover, rsi_below (contrarian buy)
-- Bearish: momentum_below (if used as sell signal), ma_crossunder
-- Display in UI with color-coded badges (green/red)
+### 1. Bullish vs Bearish Trigger Distinction - DONE
+- Added `signal` field to triggers (bullish/bearish) in discover_triggers.py
+- Signal mapping: bullish (rsi_above/below, momentum_above/below, ma_crossover, ath, vix_above, putcall_above)
+- Signal mapping: bearish (ma_crossunder, vix_below, putcall_below)
+- UI shows color-coded badges: green "▲ Bull" / red "▼ Bear"
+- Frontend has fallback logic for triggers without signal field
 
 ### 2. Scoring Documentation - DONE
 - Created `/docs/scoring.html` with detailed scoring formula documentation

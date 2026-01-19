@@ -112,6 +112,19 @@ function DiscoveredTriggers({ onSelectTrigger, apiKey }) {
     return val.toFixed(1);
   };
 
+  const getSignalDirection = (trigger) => {
+    // Use signal field if present, otherwise derive from condition_type
+    if (trigger.signal) return trigger.signal;
+
+    const conditionType = trigger.criteria?.condition_type;
+    const bullishTypes = ['rsi_above', 'rsi_below', 'momentum_above', 'momentum_below', 'ma_crossover', 'single_ath', 'dual_ath', 'vix_above', 'putcall_above'];
+    const bearishTypes = ['ma_crossunder', 'vix_below', 'putcall_below'];
+
+    if (bullishTypes.includes(conditionType)) return 'bullish';
+    if (bearishTypes.includes(conditionType)) return 'bearish';
+    return null;
+  };
+
   const getCriteriaDescription = (criteria) => {
     const { condition_type, condition_tickers } = criteria;
 
@@ -250,7 +263,7 @@ function DiscoveredTriggers({ onSelectTrigger, apiKey }) {
                       <th style={{ width: '45px' }}>Rank</th>
                       <th style={{ width: '55px' }}>Score</th>
                       <th style={{ width: '60px' }}>Target</th>
-                      <th style={{ width: '70px' }}>Type</th>
+                      <th style={{ width: '70px' }}>Signal</th>
                       <th>Criteria</th>
                       <th style={{ width: '60px' }}>Events</th>
                       <th style={{ width: '70px' }}>Avg Ret</th>
@@ -280,13 +293,18 @@ function DiscoveredTriggers({ onSelectTrigger, apiKey }) {
                             <span className="badge bg-dark">{trigger.criteria?.target_ticker || 'SPY'}</span>
                           </td>
                           <td>
-                            {trigger.trigger_type ? (
-                              <span className={`badge ${trigger.is_long_term ? 'bg-success' : 'bg-info'}`} style={{ fontSize: '0.7rem' }}>
-                                {trigger.is_long_term ? 'Long' : 'Short'}
-                              </span>
-                            ) : (
-                              <span className="text-muted">-</span>
-                            )}
+                            {(() => {
+                              const signal = getSignalDirection(trigger);
+                              if (!signal) return <span className="text-muted">-</span>;
+                              return (
+                                <span
+                                  className={`badge ${signal === 'bullish' ? 'bg-success' : 'bg-danger'}`}
+                                  style={{ fontSize: '0.7rem' }}
+                                >
+                                  {signal === 'bullish' ? '▲ Bull' : '▼ Bear'}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="small">{getCriteriaDescription(trigger.criteria)}</td>
                           <td>{trigger.event_count}</td>

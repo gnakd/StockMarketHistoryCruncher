@@ -35,6 +35,29 @@ MIN_WIN_RATE = 0.70
 MIN_AVG_RETURN = 0.08  # 8% annual
 MIN_SCORE = 55
 
+# Signal direction mapping
+# Bullish = expect price to go UP (buy signal)
+# Bearish = expect price to go DOWN (sell/caution signal)
+SIGNAL_DIRECTION = {
+    'rsi_above': 'bullish',       # Strong momentum, trend continuation
+    'rsi_below': 'bullish',       # Oversold contrarian buy
+    'momentum_above': 'bullish',  # Strong upward momentum
+    'momentum_below': 'bullish',  # Oversold contrarian buy (historically works as buy signal)
+    'ma_crossover': 'bullish',    # Golden cross
+    'ma_crossunder': 'bearish',   # Death cross
+    'single_ath': 'bullish',      # Breakout to new highs
+    'dual_ath': 'bullish',        # Confirmed breakout
+    'vix_above': 'bullish',       # High fear = contrarian buy
+    'vix_below': 'bearish',       # Complacency = caution
+    'putcall_above': 'bullish',   # High fear = contrarian buy
+    'putcall_below': 'bearish',   # Complacency = caution
+}
+
+
+def get_signal_direction(condition_type: str) -> str:
+    """Get the signal direction (bullish/bearish) for a condition type."""
+    return SIGNAL_DIRECTION.get(condition_type, 'neutral')
+
 
 def find_rsi_events(df: pd.DataFrame, period: int, threshold: float, cross_above: bool) -> list:
     """Find RSI crossover events."""
@@ -515,12 +538,17 @@ def main():
         print(f"{i:<5} {ticker:<7} {ctype:<18} {params:<22} {trigger['event_count']:<8} "
               f"{trigger['avg_return_1y']:.1%}    {trigger['win_rate_1y']:.1%}    {trigger['score']:<7}")
 
+    # Add signal direction to each trigger
+    for trigger in top_triggers:
+        condition_type = trigger.get('criteria', {}).get('condition_type', '')
+        trigger['signal'] = get_signal_direction(condition_type)
+
     # Save to triggers.json
     triggers_file = Path(__file__).parent / "discovered_triggers" / "triggers.json"
     triggers_file.parent.mkdir(exist_ok=True)
 
     output = {
-        'version': '1.0',
+        'version': '1.1',
         'updated_at': datetime.now().isoformat(),
         'total_tested': len(all_triggers),
         'total_valid': len(merged_triggers),
