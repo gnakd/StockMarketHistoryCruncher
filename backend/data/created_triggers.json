@@ -22,6 +22,137 @@
       "signal": "bullish",
       "recent_trigger_count": 0,
       "latest_trigger_date": "2022-10-14"
+    },
+    {
+      "id": "62c549c8-1443-414b-a457-235aab8b151f",
+      "name": "VIX > 30",
+      "created_at": "2026-01-20T04:40:18.908463Z",
+      "criteria": {
+        "condition_type": "vix_above",
+        "condition_tickers": [
+          "QQQ"
+        ],
+        "target_ticker": "SPY",
+        "vix_threshold": 30
+      },
+      "event_count": 22,
+      "avg_return": 0.1812,
+      "avg_win_rate": 0.75,
+      "max_drawdown": -13.75,
+      "score": 75.2,
+      "signal": "bullish",
+      "recent_trigger_count": 0,
+      "latest_trigger_date": "2025-04-21"
+    },
+    {
+      "id": "38405000-ffaa-4a46-b0a8-0b749d63716a",
+      "name": "VIX > 40",
+      "created_at": "2026-01-20T04:40:36.140654Z",
+      "criteria": {
+        "condition_type": "vix_above",
+        "condition_tickers": [
+          "QQQ"
+        ],
+        "target_ticker": "SPY",
+        "vix_threshold": 40
+      },
+      "event_count": 7,
+      "avg_return": 0.382,
+      "avg_win_rate": 1,
+      "max_drawdown": -12.89,
+      "score": 87.1,
+      "signal": "bullish",
+      "recent_trigger_count": 0,
+      "latest_trigger_date": "2025-04-10"
+    },
+    {
+      "id": "2a3b2be2-a5dd-45aa-98e4-e08244722dac",
+      "name": "VIX > 50",
+      "created_at": "2026-01-20T04:40:52.595489Z",
+      "criteria": {
+        "condition_type": "vix_above",
+        "condition_tickers": [
+          "QQQ"
+        ],
+        "target_ticker": "SPY",
+        "vix_threshold": 50
+      },
+      "event_count": 2,
+      "avg_return": 0.4118,
+      "avg_win_rate": 1,
+      "max_drawdown": -14.52,
+      "score": 85.6,
+      "signal": "bullish",
+      "recent_trigger_count": 0,
+      "latest_trigger_date": "2025-04-08"
+    },
+    {
+      "id": "9bb7c876-1271-43ae-a230-3272f396f478",
+      "name": "Short-term drawdown of -12% within 10 days",
+      "created_at": "2026-01-20T05:42:35.076473Z",
+      "criteria": {
+        "condition_type": "momentum_below",
+        "condition_tickers": [
+          "QQQ"
+        ],
+        "target_ticker": "QQQ",
+        "momentum_period": 10,
+        "momentum_threshold": -0.12
+      },
+      "event_count": 6,
+      "avg_return": 0.5721,
+      "avg_win_rate": 1,
+      "max_drawdown": -15.5,
+      "score": 86.8,
+      "signal": "bullish",
+      "recent_trigger_count": 0,
+      "latest_trigger_date": "2025-04-04"
+    },
+    {
+      "id": "cd5619c9-1706-4058-92ec-6c4357f13c3a",
+      "name": "Short-term recovery of +12% after 15 days",
+      "created_at": "2026-01-20T05:43:49.868637Z",
+      "criteria": {
+        "condition_type": "momentum_above",
+        "condition_tickers": [
+          "SPY"
+        ],
+        "target_ticker": "SPY",
+        "momentum_period": 15,
+        "momentum_threshold": 0.12
+      },
+      "event_count": 4,
+      "avg_return": 0.439,
+      "avg_win_rate": 1,
+      "max_drawdown": -8.62,
+      "score": 86.2,
+      "signal": "bullish",
+      "recent_trigger_count": 0,
+      "latest_trigger_date": "2025-05-12"
+    },
+    {
+      "id": "b7e741d9-8ac6-4e2c-bcd7-9d804bce3ccd",
+      "name": "Short-term recovery of +12% in 10 days",
+      "created_at": "2026-01-20T05:44:35.652800Z",
+      "criteria": {
+        "condition_type": "momentum_above",
+        "condition_tickers": [
+          "IWM"
+        ],
+        "target_ticker": "IWM",
+        "momentum_period": 10,
+        "momentum_threshold": 0.12
+      },
+      "event_count": 9,
+      "avg_return": 0.5106,
+      "avg_win_rate": 1,
+      "max_drawdown": -10.51,
+      "score": 87.7,
+      "signal": "bullish",
+      "recent_trigger_count": 0,
+      "latest_trigger_date": "2020-11-11",
+      "updated_at": "2026-01-20T05:44:43.881077Z"
     }
-  ]
+  ],
+  "activity_refreshed_at": "2026-01-20T00:34:27.292574"
 }

@@ -279,7 +279,9 @@ function DiscoveredTriggers({ onSelectTrigger, apiKey }) {
                       // Support both old format (avg_return_1y) and new format (avg_return)
                       const avgReturn = trigger.avg_return ?? trigger.avg_return_1y;
                       const avgWinRate = trigger.avg_win_rate ?? trigger.win_rate_1y;
-                      const avgDrawdown = trigger.avg_drawdown ?? trigger.max_drawdown;
+                      // avg_max_dd is stored as decimal (e.g., -0.13), convert to percentage
+                      const avgDrawdownRaw = trigger.avg_drawdown ?? trigger.max_drawdown ?? trigger.avg_max_dd;
+                      const avgDrawdown = avgDrawdownRaw != null ? avgDrawdownRaw * 100 : null;
 
                       return (
                         <tr key={idx}>

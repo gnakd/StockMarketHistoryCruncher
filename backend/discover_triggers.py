@@ -26,6 +26,9 @@ from app import (
     compute_sma,
     compute_forward_returns,
     compute_statistics,
+    find_vix_events,
+    find_breadth_threshold_events,
+    compute_breadth_pct_above_200ma,
 )
 
 
@@ -170,6 +173,7 @@ def analyze_condition(df: pd.DataFrame, target_df: pd.DataFrame, events: list) -
     event_results = compute_forward_returns(target_df, events, intervals)
 
     returns_1y = [r['1_year'] for r in event_results if r.get('1_year') is not None]
+    max_drawdowns = [r['max_drawdown'] for r in event_results if r.get('max_drawdown') is not None]
 
     if not returns_1y or len(returns_1y) < MIN_EVENTS:
         return None
@@ -178,6 +182,7 @@ def analyze_condition(df: pd.DataFrame, target_df: pd.DataFrame, events: list) -
     win_rate = sum(1 for r in returns_1y if r > 0) / len(returns_1y)
     std_return = np.std(returns_1y) / 100 if len(returns_1y) > 1 else None
     sharpe = (avg_return / std_return) if std_return and std_return > 0 else None
+    avg_max_dd = np.mean(max_drawdowns) / 100 if max_drawdowns else None
 
     if win_rate < MIN_WIN_RATE or avg_return < MIN_AVG_RETURN:
         return None
@@ -196,6 +201,7 @@ def analyze_condition(df: pd.DataFrame, target_df: pd.DataFrame, events: list) -
         'event_count': len(events),
         'avg_return_1y': round(avg_return, 4),
         'win_rate_1y': round(win_rate, 4),
+        'avg_max_dd': round(avg_max_dd, 4) if avg_max_dd else None,
         'sharpe_like': round(sharpe, 2) if sharpe else None,
         'score': score,
         'recent_trigger_count': len(recent_events),
@@ -333,6 +339,81 @@ def discover_ma_triggers(df: pd.DataFrame, target_df: pd.DataFrame, ticker: str)
     return triggers
 
 
+def discover_vix_triggers(target_df: pd.DataFrame, target_ticker: str, start_date: str, end_date: str) -> list:
+    """Discover VIX-based triggers."""
+    triggers = []
+
+    # VIX thresholds to test
+    vix_above_thresholds = [20, 25, 30, 35, 40, 45, 50]
+    vix_below_thresholds = [12, 13, 14, 15, 16, 17, 18]
+
+    print("  Testing VIX Above conditions...")
+    for threshold in vix_above_thresholds:
+        params = {'vix_threshold': threshold}
+        events = find_vix_events(start_date, end_date, params, cross_above=True)
+        result = analyze_condition(target_df, target_df, events)
+        if result:
+            triggers.append({
+                'criteria': {
+                    'condition_type': 'vix_above',
+                    'condition_tickers': [],
+                    'target_ticker': target_ticker,
+                    'vix_threshold': threshold,
+                },
+                **result
+            })
+
+    print("  Testing VIX Below conditions...")
+    for threshold in vix_below_thresholds:
+        params = {'vix_threshold': threshold}
+        events = find_vix_events(start_date, end_date, params, cross_above=False)
+        result = analyze_condition(target_df, target_df, events)
+        if result:
+            triggers.append({
+                'criteria': {
+                    'condition_type': 'vix_below',
+                    'condition_tickers': [],
+                    'target_ticker': target_ticker,
+                    'vix_threshold': threshold,
+                },
+                **result
+            })
+
+    return triggers
+
+
+def discover_breadth_triggers(target_df: pd.DataFrame, ticker_data_dict: dict, membership_dict: dict, target_ticker: str) -> list:
+    """Discover S&P 500 breadth triggers (% above/below 200 DMA)."""
+    triggers = []
+
+    # Calculate breadth series
+    breadth_df = compute_breadth_pct_above_200ma(ticker_data_dict, target_df, membership_dict)
+    if breadth_df is None or breadth_df.empty:
+        print("  No breadth data available, skipping...")
+        return triggers
+
+    # Breadth thresholds to test (% above 200 DMA crossing below threshold = bearish breadth = buy signal)
+    breadth_below_thresholds = [15, 20, 25, 30, 35]  # Low % above = most stocks below 200 DMA = oversold
+
+    print("  Testing S&P 500 Breadth conditions...")
+    for threshold in breadth_below_thresholds:
+        params = {'breadth_threshold': threshold}
+        events = find_breadth_threshold_events(breadth_df, params)
+        result = analyze_condition(target_df, target_df, events)
+        if result:
+            triggers.append({
+                'criteria': {
+                    'condition_type': 'sp500_pct_above_200ma',
+                    'condition_tickers': [],
+                    'target_ticker': target_ticker,
+                    'breadth_threshold': threshold,
+                },
+                **result
+            })
+
+    return triggers
+
+
 def deduplicate_triggers(triggers: list) -> list:
     """Remove near-duplicate triggers, keeping the best scoring one."""
     if not triggers:
@@ -416,6 +497,10 @@ def triggers_match(t1: dict, t2: dict) -> bool:
     elif 'ma' in ctype:
         return (c1.get('ma_short') == c2.get('ma_short') and
                 c1.get('ma_long') == c2.get('ma_long'))
+    elif 'vix' in ctype:
+        return c1.get('vix_threshold') == c2.get('vix_threshold')
+    elif 'breadth' in ctype or 'sp500_pct' in ctype:
+        return c1.get('breadth_threshold') == c2.get('breadth_threshold')
 
     return False
 
@@ -480,6 +565,17 @@ def main():
         print(f"  Found {len(ma_triggers)} valid MA triggers")
         all_triggers.extend(ma_triggers)
 
+    # Discover VIX triggers (only need to run once with SPY as target)
+    print(f"\n{'='*50}")
+    print("Analyzing VIX triggers...")
+    print("=" * 50)
+
+    spy_df = cache_manager.get_bars('SPY', start_date, end_date)
+    if not spy_df.empty:
+        vix_triggers = discover_vix_triggers(spy_df, 'SPY', start_date.isoformat(), end_date.isoformat())
+        print(f"  Found {len(vix_triggers)} valid VIX triggers")
+        all_triggers.extend(vix_triggers)
+
     # Deduplicate and sort
     print(f"\n{'='*50}")
     print("Processing results...")
@@ -512,7 +608,7 @@ def main():
     merged_triggers.sort(key=lambda x: x['score'], reverse=True)
 
     # Take top triggers
-    top_triggers = merged_triggers[:30]
+    top_triggers = merged_triggers[:50]
 
     # Display results
     print(f"\n{'='*85}")
@@ -532,6 +628,10 @@ def main():
             params = f"p={criteria['momentum_period']}, t={criteria['momentum_threshold']:.0%}"
         elif 'ma' in ctype:
             params = f"s={criteria['ma_short']}, l={criteria['ma_long']}"
+        elif 'vix' in ctype:
+            params = f"threshold={criteria['vix_threshold']}"
+        elif 'breadth' in ctype or 'sp500_pct' in ctype:
+            params = f"pct<={criteria['breadth_threshold']}%"
         else:
             params = ""
 

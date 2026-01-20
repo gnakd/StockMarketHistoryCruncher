@@ -80,12 +80,38 @@ There are other modified files not yet committed:
 - Added link from `/docs/condition-types.html` to scoring docs
 - Documents all four components: Return (30%), Win Rate (30%), Sharpe (25%), Significance (15%)
 
-### 3. YCharts Put/Call Ratio Data
-- Explore scraping put/call ratio data from YCharts
-- Current CBOE data only goes to 2019
-- YCharts may have more recent data: https://ycharts.com/indicators/cboe_equity_put_call_ratio
-- Consider web scraping or API options
-- Alternative: Check if FRED has updated P/C ratio data
+### 3. CBOE Put/Call Ratio Daily Scraper - IN PROGRESS
+
+**Research completed (2026-01-19):**
+
+**Data Gap:** CBOE free CSV downloads end October 4, 2019. No free historical source for 2019-present.
+
+**Dead Ends:**
+- YCharts - requires paid subscription, no free API
+- FRED - only has VIX, no P/C ratio
+- MacroMicro - only 10-day moving averages
+- Nasdaq Data Link - no free P/C ratio dataset
+- Alpha Vantage - no P/C ratio endpoint
+- Barchart - individual stock options only
+
+**Solution Found:** Build daily scraper using CBOE JSON API
+
+**Working Endpoint:**
+```
+https://www.cboe.com/us/options/market_statistics/most_active/data/
+```
+- Returns JSON with calls/puts volume data
+- Requires User-Agent header (blocks bare requests)
+- Can calculate P/C ratio from returned volume data
+
+**Implementation TODO:**
+1. Create `backend/cache/cboe_daily_scraper.py`
+2. Fetch `most_active/data/` endpoint daily
+3. Sum all call volume and put volume from response
+4. Calculate ratio: `total_puts / total_calls`
+5. Store in existing `putcall_ratio` SQLite table with source='cboe_daily'
+6. Add to scheduler (run after market close ~4:30 PM ET)
+7. Note: This only collects going forward, cannot backfill 2019-2024 gap
 
 ### 4. Conservative Scoring (CriteriaTriggerDiscovery)
 The conservative scoring plan was implemented but reverted. If re-implementing:
@@ -144,3 +170,9 @@ Several frontend files have modifications - review and commit or discard.
 - Trigger comparison view (overlay multiple triggers on same chart)
 - Backtest date range selector in UI
 - Sector rotation signals using S&P 500 stock data
+
+### 12. Sortable Table Columns
+- Enable column sorting in Discovered Triggers and Created Triggers tables
+- Clickable column headers to sort ascending/descending
+- Columns to support: Score, Events, Avg Return, Win Rate, Avg DD, Recent, Latest
+- Visual indicator for current sort column and direction (▲/▼)
