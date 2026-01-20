@@ -268,7 +268,7 @@ function DiscoveredTriggers({ onSelectTrigger, apiKey }) {
                       <th style={{ width: '60px' }}>Events</th>
                       <th style={{ width: '70px' }}>Avg Ret</th>
                       <th style={{ width: '70px' }}>Avg WR</th>
-                      <th style={{ width: '65px' }}>Max DD</th>
+                      <th style={{ width: '65px' }}>Avg DD</th>
                       <th style={{ width: '55px' }}>Recent</th>
                       <th style={{ width: '85px' }}>Latest</th>
                       <th style={{ width: '60px' }}>Action</th>
@@ -279,7 +279,7 @@ function DiscoveredTriggers({ onSelectTrigger, apiKey }) {
                       // Support both old format (avg_return_1y) and new format (avg_return)
                       const avgReturn = trigger.avg_return ?? trigger.avg_return_1y;
                       const avgWinRate = trigger.avg_win_rate ?? trigger.win_rate_1y;
-                      const maxDrawdown = trigger.max_drawdown;
+                      const avgDrawdown = trigger.avg_drawdown ?? trigger.max_drawdown;
 
                       return (
                         <tr key={idx}>
@@ -314,8 +314,8 @@ function DiscoveredTriggers({ onSelectTrigger, apiKey }) {
                           <td className={avgWinRate >= 0.7 ? 'text-success' : ''}>
                             {formatPercent(avgWinRate)}
                           </td>
-                          <td className={maxDrawdown !== undefined ? (maxDrawdown > -5 ? 'text-success' : maxDrawdown > -10 ? 'text-warning' : 'text-danger') : ''}>
-                            {maxDrawdown !== undefined ? `${maxDrawdown.toFixed(1)}%` : 'N/A'}
+                          <td className={avgDrawdown != null ? (avgDrawdown > -5 ? 'text-success' : avgDrawdown > -10 ? 'text-warning' : 'text-danger') : ''}>
+                            {avgDrawdown != null ? `${avgDrawdown.toFixed(1)}%` : '-'}
                           </td>
                           <td>
                             {trigger.recent_trigger_count > 0 ? (

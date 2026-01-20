@@ -1658,6 +1658,228 @@ def update_trigger(trigger_id):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/created_triggers/refresh', methods=['POST'])
+def refresh_created_trigger_activity():
+    """Refresh recent trigger counts for saved/created triggers using current cached data."""
+    import json
+
+    data = request.get_json() or {}
+    api_key = data.get('api_key', Config.POLYGON_API_KEY)
+
+    if not api_key:
+        return jsonify({'error': 'API key required'}), 400
+
+    try:
+        triggers_data = _load_created_triggers()
+        triggers = triggers_data.get('triggers', [])
+
+        if not triggers:
+            return jsonify({
+                'status': 'ok',
+                'message': 'No saved triggers to refresh',
+                'triggers': [],
+                'refreshed_at': datetime.now().isoformat()
+            })
+
+        updated_triggers = []
+
+        for trigger in triggers:
+            criteria = trigger.get('criteria', {})
+            condition_type = criteria.get('condition_type')
+            condition_tickers = criteria.get('condition_tickers', [])
+            target_ticker = criteria.get('target_ticker', 'SPY')
+
+            # Get cached data range for the condition ticker
+            ticker = condition_tickers[0] if condition_tickers else target_ticker
+            cache = get_cache_manager(api_key)
+            cache_status = cache.get_cache_status(ticker)
+
+            if not cache_status or not cache_status.get('first_date'):
+                # No cached data, keep original values
+                updated_triggers.append(trigger)
+                continue
+
+            # Get data from cache
+            start_date = cache_status['first_date']
+            end_date = cache_status['last_date']
+
+            if isinstance(start_date, str):
+                start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00')).date()
+            elif hasattr(start_date, 'date'):
+                start_date = start_date.date()
+
+            if isinstance(end_date, str):
+                end_date = datetime.fromisoformat(end_date.replace('Z', '+00:00')).date()
+            elif hasattr(end_date, 'date'):
+                end_date = end_date.date()
+
+            try:
+                df = cache._get_from_cache(ticker, start_date, end_date)
+                if df.empty:
+                    updated_triggers.append(trigger)
+                    continue
+
+                # Build condition params
+                condition_params = {k: v for k, v in criteria.items()
+                                   if k not in ['condition_type', 'condition_tickers', 'target_ticker']}
+
+                # Find events using the same logic as main analysis
+                event_dates = []
+                if condition_type == 'rsi_above':
+                    df_copy = df.copy()
+                    df_copy['rsi'] = compute_rsi(df_copy, condition_params.get('rsi_period', 14))
+                    threshold = condition_params.get('rsi_threshold', 70)
+                    for i in range(1, len(df_copy)):
+                        current_rsi = df_copy.iloc[i]['rsi']
+                        prev_rsi = df_copy.iloc[i-1]['rsi']
+                        if pd.notna(current_rsi) and pd.notna(prev_rsi):
+                            if prev_rsi < threshold and current_rsi >= threshold:
+                                event_date = df_copy.index[i]
+                                if not event_dates or (event_date - event_dates[-1]).days > 5:
+                                    event_dates.append(event_date)
+
+                elif condition_type == 'rsi_below':
+                    df_copy = df.copy()
+                    df_copy['rsi'] = compute_rsi(df_copy, condition_params.get('rsi_period', 14))
+                    threshold = condition_params.get('rsi_threshold', 30)
+                    for i in range(1, len(df_copy)):
+                        current_rsi = df_copy.iloc[i]['rsi']
+                        prev_rsi = df_copy.iloc[i-1]['rsi']
+                        if pd.notna(current_rsi) and pd.notna(prev_rsi):
+                            if prev_rsi > threshold and current_rsi <= threshold:
+                                event_date = df_copy.index[i]
+                                if not event_dates or (event_date - event_dates[-1]).days > 5:
+                                    event_dates.append(event_date)
+
+                elif condition_type == 'momentum_above':
+                    df_copy = df.copy()
+                    period = condition_params.get('momentum_period', 12)
+                    threshold = condition_params.get('momentum_threshold', 0.05)
+                    df_copy['momentum'] = compute_momentum(df_copy, period)
+                    for i in range(1, len(df_copy)):
+                        current_mom = df_copy.iloc[i]['momentum']
+                        prev_mom = df_copy.iloc[i-1]['momentum']
+                        if pd.notna(current_mom) and pd.notna(prev_mom):
+                            if prev_mom < threshold and current_mom >= threshold:
+                                event_date = df_copy.index[i]
+                                if not event_dates or (event_date - event_dates[-1]).days > 5:
+                                    event_dates.append(event_date)
+
+                elif condition_type == 'momentum_below':
+                    df_copy = df.copy()
+                    period = condition_params.get('momentum_period', 12)
+                    threshold = -abs(condition_params.get('momentum_threshold', 0.05))
+                    df_copy['momentum'] = compute_momentum(df_copy, period)
+                    for i in range(1, len(df_copy)):
+                        current_mom = df_copy.iloc[i]['momentum']
+                        prev_mom = df_copy.iloc[i-1]['momentum']
+                        if pd.notna(current_mom) and pd.notna(prev_mom):
+                            if prev_mom > threshold and current_mom <= threshold:
+                                event_date = df_copy.index[i]
+                                if not event_dates or (event_date - event_dates[-1]).days > 5:
+                                    event_dates.append(event_date)
+
+                elif condition_type in ('putcall_above', 'putcall_below'):
+                    cross_above = condition_type == 'putcall_above'
+                    event_dates = find_putcall_events(
+                        start_date.isoformat() if hasattr(start_date, 'isoformat') else str(start_date),
+                        end_date.isoformat() if hasattr(end_date, 'isoformat') else str(end_date),
+                        condition_params,
+                        cross_above=cross_above
+                    )
+
+                elif condition_type in ('vix_above', 'vix_below'):
+                    cross_above = condition_type == 'vix_above'
+                    event_dates = find_vix_events(
+                        start_date.isoformat() if hasattr(start_date, 'isoformat') else str(start_date),
+                        end_date.isoformat() if hasattr(end_date, 'isoformat') else str(end_date),
+                        condition_params,
+                        cross_above=cross_above
+                    )
+
+                elif condition_type == 'sp500_pct_above_200ma':
+                    event_dates = find_breadth_events(
+                        start_date.isoformat() if hasattr(start_date, 'isoformat') else str(start_date),
+                        end_date.isoformat() if hasattr(end_date, 'isoformat') else str(end_date),
+                        condition_params,
+                        api_key
+                    )
+
+                elif condition_type in ('ma_crossover', 'ma_crossunder'):
+                    df_copy = df.copy()
+                    ma_short = condition_params.get('ma_short', 50)
+                    ma_long = condition_params.get('ma_long', 200)
+                    df_copy['ma_short'] = df_copy['close'].rolling(window=ma_short).mean()
+                    df_copy['ma_long'] = df_copy['close'].rolling(window=ma_long).mean()
+                    cross_above = condition_type == 'ma_crossover'
+                    for i in range(1, len(df_copy)):
+                        curr_short = df_copy.iloc[i]['ma_short']
+                        curr_long = df_copy.iloc[i]['ma_long']
+                        prev_short = df_copy.iloc[i-1]['ma_short']
+                        prev_long = df_copy.iloc[i-1]['ma_long']
+                        if pd.notna(curr_short) and pd.notna(curr_long) and pd.notna(prev_short) and pd.notna(prev_long):
+                            if cross_above:
+                                if prev_short <= prev_long and curr_short > curr_long:
+                                    event_date = df_copy.index[i]
+                                    if not event_dates or (event_date - event_dates[-1]).days > 5:
+                                        event_dates.append(event_date)
+                            else:
+                                if prev_short >= prev_long and curr_short < curr_long:
+                                    event_date = df_copy.index[i]
+                                    if not event_dates or (event_date - event_dates[-1]).days > 5:
+                                        event_dates.append(event_date)
+
+                elif condition_type == 'single_ath':
+                    days_gap = condition_params.get('days_gap', 252)
+                    df_copy = df.copy()
+                    df_copy['rolling_max'] = df_copy['close'].rolling(window=days_gap, min_periods=days_gap).max()
+                    for i in range(days_gap, len(df_copy)):
+                        if df_copy.iloc[i]['close'] >= df_copy.iloc[i]['rolling_max']:
+                            # Check if it's been at least days_gap since last ATH
+                            if i >= days_gap:
+                                prev_max = df_copy.iloc[i-1]['rolling_max']
+                                if df_copy.iloc[i]['close'] > prev_max:
+                                    event_date = df_copy.index[i]
+                                    if not event_dates or (event_date - event_dates[-1]).days > 5:
+                                        event_dates.append(event_date)
+
+                # Calculate recent triggers (last 30 days)
+                today = datetime.now().date()
+                thirty_days_ago = today - timedelta(days=30)
+                recent_events = [d for d in event_dates if (d.date() if hasattr(d, 'date') else d) >= thirty_days_ago]
+
+                # Update trigger with fresh data
+                updated_trigger = trigger.copy()
+                updated_trigger['recent_trigger_count'] = len(recent_events)
+                if event_dates:
+                    last_date = event_dates[-1]
+                    updated_trigger['latest_trigger_date'] = (
+                        last_date.strftime('%Y-%m-%d') if hasattr(last_date, 'strftime') else str(last_date)
+                    )
+                updated_triggers.append(updated_trigger)
+
+            except Exception as e:
+                logger.warning(f"Failed to refresh saved trigger {trigger.get('name', criteria)}: {e}")
+                updated_triggers.append(trigger)
+
+        # Update the triggers data
+        triggers_data['triggers'] = updated_triggers
+        triggers_data['activity_refreshed_at'] = datetime.now().isoformat()
+
+        _save_created_triggers(triggers_data)
+
+        return jsonify({
+            'status': 'ok',
+            'message': f'Refreshed {len(updated_triggers)} saved triggers',
+            'triggers': updated_triggers,
+            'refreshed_at': triggers_data['activity_refreshed_at']
+        })
+
+    except Exception as e:
+        logger.error(f"Failed to refresh saved triggers: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     # Initialize database on startup
     from cache.db import init_db

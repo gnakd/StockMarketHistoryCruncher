@@ -205,7 +205,7 @@ function CreatedTriggers({ onSelectTrigger, onTriggersChange }) {
                     <th style={{ width: '60px' }}>Events</th>
                     <th style={{ width: '70px' }}>Avg Ret</th>
                     <th style={{ width: '70px' }}>Win Rate</th>
-                    <th style={{ width: '65px' }}>Max DD</th>
+                    <th style={{ width: '65px' }}>Avg DD</th>
                     <th style={{ width: '85px' }}>Latest</th>
                     <th style={{ width: '140px' }}>Actions</th>
                   </tr>

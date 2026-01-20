@@ -4,6 +4,7 @@ import axios from 'axios';
 function RecentTriggers({ onSelectTrigger, apiKey }) {
   const [triggers, setTriggers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [expanded, setExpanded] = useState(true);
   const [dataRange, setDataRange] = useState(null);
@@ -16,24 +17,48 @@ function RecentTriggers({ onSelectTrigger, apiKey }) {
   const fetchTriggers = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/discovered_triggers');
-      if (response.data.status === 'ok') {
-        // Filter to only show triggers with recent activity
-        const recentTriggers = (response.data.triggers || []).filter(
-          t => t.recent_trigger_count > 0
-        );
-        // Sort by recent_trigger_count descending, then by latest_trigger_date
-        recentTriggers.sort((a, b) => {
-          if (b.recent_trigger_count !== a.recent_trigger_count) {
-            return b.recent_trigger_count - a.recent_trigger_count;
-          }
-          return (b.latest_trigger_date || '').localeCompare(a.latest_trigger_date || '');
-        });
-        setTriggers(recentTriggers);
-      } else {
-        setTriggers([]);
-        setError(response.data.message);
+      // Fetch from both discovered and saved triggers
+      const [discoveredRes, savedRes] = await Promise.all([
+        axios.get('/api/discovered_triggers'),
+        axios.get('/api/created_triggers')
+      ]);
+
+      let allTriggers = [];
+
+      // Add discovered triggers
+      if (discoveredRes.data.status === 'ok') {
+        const discovered = (discoveredRes.data.triggers || []).map(t => ({
+          ...t,
+          source: 'discovered'
+        }));
+        allTriggers = allTriggers.concat(discovered);
       }
+
+      // Add saved triggers
+      if (savedRes.data.status === 'ok') {
+        const saved = (savedRes.data.triggers || []).map(t => ({
+          ...t,
+          // Normalize field names to match discovered trigger format
+          avg_return_1y: t.avg_return,
+          win_rate_1y: t.avg_win_rate,
+          source: 'saved'
+        }));
+        allTriggers = allTriggers.concat(saved);
+      }
+
+      // Filter to only show triggers with recent activity
+      const recentTriggers = allTriggers.filter(t => t.recent_trigger_count > 0);
+
+      // Sort by recent_trigger_count descending, then by latest_trigger_date
+      recentTriggers.sort((a, b) => {
+        if (b.recent_trigger_count !== a.recent_trigger_count) {
+          return b.recent_trigger_count - a.recent_trigger_count;
+        }
+        return (b.latest_trigger_date || '').localeCompare(a.latest_trigger_date || '');
+      });
+
+      setTriggers(recentTriggers);
+      setError(null);
     } catch (err) {
       setError('Failed to load triggers');
       setTriggers([]);
@@ -51,6 +76,28 @@ function RecentTriggers({ onSelectTrigger, apiKey }) {
       }
     } catch (err) {
       console.error('Failed to fetch data range:', err);
+    }
+  };
+
+  const refreshTriggerActivity = async () => {
+    if (!apiKey) {
+      setError('API key required to refresh trigger activity');
+      return;
+    }
+    setRefreshing(true);
+    try {
+      // Refresh both discovered and saved trigger activity in parallel
+      await Promise.all([
+        axios.post('/api/triggers/refresh', { api_key: apiKey }),
+        axios.post('/api/created_triggers/refresh', { api_key: apiKey })
+      ]);
+      // Reload triggers after refresh
+      await fetchTriggers();
+      setError(null);
+    } catch (err) {
+      setError('Failed to refresh trigger activity: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -146,10 +193,25 @@ function RecentTriggers({ onSelectTrigger, apiKey }) {
         </h5>
         <div className="d-flex align-items-center">
           <button
+            className="btn btn-sm btn-outline-primary me-1"
+            onClick={(e) => { e.stopPropagation(); refreshTriggerActivity(); }}
+            disabled={refreshing || !apiKey}
+            title={!apiKey ? 'Enter API key to refresh' : 'Refresh trigger activity for all triggers'}
+          >
+            {refreshing ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                Refreshing...
+              </>
+            ) : (
+              'Refresh Activity'
+            )}
+          </button>
+          <button
             className="btn btn-sm btn-outline-warning me-2"
             onClick={(e) => { e.stopPropagation(); fetchTriggers(); }}
           >
-            Refresh
+            Reload
           </button>
           <span>{expanded ? '▼' : '▶'}</span>
         </div>
@@ -186,13 +248,22 @@ function RecentTriggers({ onSelectTrigger, apiKey }) {
                 </thead>
                 <tbody>
                   {triggers.map((trigger, idx) => (
-                    <tr key={idx}>
+                    <tr key={trigger.id || idx}>
                       <td>
                         <span className={`badge ${trigger.score >= 70 ? 'bg-success' : trigger.score >= 50 ? 'bg-warning' : 'bg-secondary'}`}>
                           {formatScore(trigger.score)}
                         </span>
                       </td>
-                      <td className="small">{getCriteriaDescription(trigger.criteria)}</td>
+                      <td className="small">
+                        {trigger.source === 'saved' && trigger.name && (
+                          <span className="badge bg-primary me-1" style={{ fontSize: '0.65rem' }}>Saved</span>
+                        )}
+                        {trigger.source === 'saved' && trigger.name ? (
+                          <span title={getCriteriaDescription(trigger.criteria)}>{trigger.name}</span>
+                        ) : (
+                          getCriteriaDescription(trigger.criteria)
+                        )}
+                      </td>
                       <td>
                         <span className="badge bg-info">{trigger.recent_trigger_count}</span>
                       </td>
