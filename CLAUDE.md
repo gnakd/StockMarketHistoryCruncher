@@ -176,3 +176,20 @@ Several frontend files have modifications - review and commit or discard.
 - Clickable column headers to sort ascending/descending
 - Columns to support: Score, Events, Avg Return, Win Rate, Avg DD, Recent, Latest
 - Visual indicator for current sort column and direction (▲/▼)
+
+### 13. CNN Fear & Greed Index Trigger
+- Add `feargreed_above` and `feargreed_below` condition types
+- Composite sentiment indicator (0-100 scale):
+  - 0-25 = Extreme Fear = contrarian buy signal
+  - 25-45 = Fear
+  - 45-55 = Neutral
+  - 55-75 = Greed
+  - 75-100 = Extreme Greed = contrarian caution signal
+- Components: Market momentum, stock price strength, stock price breadth, put/call ratio, junk bond demand, market volatility, safe haven demand
+- Data source research needed:
+  - CNN does not provide official API
+  - Potential sources: web scraping, Alternative.me Fear & Greed API, or calculate from components
+- New files to create:
+  - `backend/cache/fear_greed.py` - data manager, fetcher
+  - `backend/tests/test_fear_greed.py` - validation tests
+- API endpoints: `/api/feargreed`, `/api/feargreed/stats`

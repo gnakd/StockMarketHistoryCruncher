@@ -10,6 +10,7 @@ import uuid
 from config import Config
 from cache.putcall_ratio import get_putcall_manager, PutCallRatioManager
 from cache.vix import get_vix_manager, VIXManager
+from cache.fear_greed import get_feargreed_manager, FearGreedManager
 from cache.sp500_history import get_sp500_constituents_range, get_sp500_constituents_for_date
 
 # Configure logging
@@ -684,6 +685,64 @@ def find_vix_events(start_date: str, end_date: str, params: dict, cross_above: b
     return events
 
 
+def find_feargreed_events(start_date: str, end_date: str, params: dict, cross_above: bool = True):
+    """
+    Find dates where Fear & Greed Index crosses threshold.
+
+    Args:
+        start_date: Start date string (YYYY-MM-DD)
+        end_date: End date string (YYYY-MM-DD)
+        params: Dict with 'feargreed_threshold' key
+        cross_above: If True, find crosses above threshold (greed = caution signal)
+                    If False, find crosses below threshold (fear = buy signal)
+
+    Returns:
+        List of datetime dates when crossover occurred
+    """
+    threshold = params.get('feargreed_threshold', 75 if cross_above else 25)
+
+    # Get Fear & Greed manager and ensure data is loaded
+    manager = get_feargreed_manager()
+    manager.load_data(force_reload=False)
+
+    # Get series
+    start_dt = date.fromisoformat(start_date)
+    end_dt = date.fromisoformat(end_date)
+    df = manager.get_series(start_dt, end_dt)
+
+    if df.empty:
+        logger.warning(f"No Fear & Greed data available for {start_date} to {end_date}")
+        return []
+
+    events = []
+
+    for i in range(1, len(df)):
+        current_date = df.index[i]
+        current_value = df.iloc[i]['value']
+        prev_value = df.iloc[i-1]['value']
+
+        if pd.isna(current_value) or pd.isna(prev_value):
+            continue
+
+        # Convert to pandas Timestamp for consistent comparison
+        current_ts = pd.Timestamp(current_date)
+
+        if cross_above:
+            # Crossing above threshold (e.g., Fear & Greed > 75 = extreme greed)
+            if prev_value < threshold and current_value >= threshold:
+                # Avoid clustering events too close together (5 day minimum gap)
+                if not events or (current_ts - events[-1]).days > 5:
+                    events.append(current_ts)
+        else:
+            # Crossing below threshold (e.g., Fear & Greed < 25 = extreme fear)
+            if prev_value > threshold and current_value <= threshold:
+                if not events or (current_ts - events[-1]).days > 5:
+                    events.append(current_ts)
+
+    logger.info(f"Found {len(events)} Fear & Greed {'above' if cross_above else 'below'} {threshold} events")
+    return events
+
+
 def compute_forward_returns(target_df, event_dates, intervals):
     """Compute forward returns for each event"""
     results = []
@@ -864,7 +923,7 @@ def fetch_data():
             return jsonify({'error': 'Polygon API key is required'}), 400
 
         # Some conditions don't require condition tickers
-        no_ticker_conditions = ['sp500_pct_above_200ma', 'putcall_above', 'putcall_below', 'vix_above', 'vix_below']
+        no_ticker_conditions = ['sp500_pct_above_200ma', 'putcall_above', 'putcall_below', 'vix_above', 'vix_below', 'feargreed_above', 'feargreed_below']
         if not condition_tickers and condition_type not in no_ticker_conditions:
             return jsonify({'error': 'At least one condition ticker is required'}), 400
 
@@ -931,6 +990,12 @@ def fetch_data():
         elif condition_type == 'vix_below':
             # Low VIX = complacency = potential caution signal
             event_dates = find_vix_events(start_date, end_date, condition_params, cross_above=False)
+        elif condition_type == 'feargreed_above':
+            # High Fear & Greed = extreme greed = contrarian caution signal
+            event_dates = find_feargreed_events(start_date, end_date, condition_params, cross_above=True)
+        elif condition_type == 'feargreed_below':
+            # Low Fear & Greed = extreme fear = contrarian buy signal
+            event_dates = find_feargreed_events(start_date, end_date, condition_params, cross_above=False)
         elif condition_type == 'sp500_pct_above_200ma':
             # Fetch data for all S&P 500 constituents using historical membership
             # This avoids survivorship bias by only including stocks that were in S&P 500 at each point in time
@@ -1487,6 +1552,77 @@ def get_putcall_stats():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/feargreed', methods=['GET'])
+def get_feargreed_data():
+    """
+    Get Fear & Greed Index data.
+
+    Query params:
+        start_date: Start date (YYYY-MM-DD), default: 2011-01-01
+        end_date: End date (YYYY-MM-DD), default: today
+        reload: If 'true', force reload data
+    """
+    start_date = request.args.get('start_date', '2011-01-01')
+    end_date = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
+    reload = request.args.get('reload', 'false').lower() == 'true'
+
+    try:
+        manager = get_feargreed_manager()
+
+        # Load data if needed
+        manager.load_data(force_reload=reload)
+
+        # Get data range
+        start_dt = date.fromisoformat(start_date)
+        end_dt = date.fromisoformat(end_date)
+
+        # Get series
+        df = manager.get_series(start_dt, end_dt)
+
+        if df.empty:
+            return jsonify({
+                'status': 'no_data',
+                'message': f'No Fear & Greed data available for {start_date} to {end_date}',
+                'data': [],
+                'stats': manager.get_stats()
+            })
+
+        # Convert to list of dicts
+        data = []
+        for idx, row in df.iterrows():
+            data.append({
+                'date': idx.strftime('%Y-%m-%d'),
+                'value': row['value']
+            })
+
+        return jsonify({
+            'status': 'ok',
+            'count': len(data),
+            'start_date': start_date,
+            'end_date': end_date,
+            'data': data,
+            'stats': manager.get_stats()
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching Fear & Greed data: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/feargreed/stats', methods=['GET'])
+def get_feargreed_stats():
+    """Get statistics about Fear & Greed Index data."""
+    try:
+        manager = get_feargreed_manager()
+        manager.load_data(force_reload=False)
+        return jsonify(manager.get_stats())
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 # =============================================================================
 # Created Triggers CRUD Endpoints
 # =============================================================================
@@ -1791,6 +1927,15 @@ def refresh_created_trigger_activity():
                 elif condition_type in ('vix_above', 'vix_below'):
                     cross_above = condition_type == 'vix_above'
                     event_dates = find_vix_events(
+                        start_date.isoformat() if hasattr(start_date, 'isoformat') else str(start_date),
+                        end_date.isoformat() if hasattr(end_date, 'isoformat') else str(end_date),
+                        condition_params,
+                        cross_above=cross_above
+                    )
+
+                elif condition_type in ('feargreed_above', 'feargreed_below'):
+                    cross_above = condition_type == 'feargreed_above'
+                    event_dates = find_feargreed_events(
                         start_date.isoformat() if hasattr(start_date, 'isoformat') else str(start_date),
                         end_date.isoformat() if hasattr(end_date, 'isoformat') else str(end_date),
                         condition_params,

@@ -27,6 +27,7 @@ from app import (
     compute_forward_returns,
     compute_statistics,
     find_vix_events,
+    find_feargreed_events,
     find_breadth_threshold_events,
     compute_breadth_pct_above_200ma,
 )
@@ -54,6 +55,8 @@ SIGNAL_DIRECTION = {
     'vix_below': 'bearish',       # Complacency = caution
     'putcall_above': 'bullish',   # High fear = contrarian buy
     'putcall_below': 'bearish',   # Complacency = caution
+    'feargreed_above': 'bearish', # Extreme greed = caution
+    'feargreed_below': 'bullish', # Extreme fear = contrarian buy
 }
 
 
@@ -382,6 +385,51 @@ def discover_vix_triggers(target_df: pd.DataFrame, target_ticker: str, start_dat
     return triggers
 
 
+def discover_feargreed_triggers(target_df: pd.DataFrame, target_ticker: str, start_date: str, end_date: str) -> list:
+    """Discover Fear & Greed Index-based triggers."""
+    triggers = []
+
+    # Fear & Greed thresholds to test
+    # Above thresholds (extreme greed = caution)
+    feargreed_above_thresholds = [70, 75, 80, 85, 90]
+    # Below thresholds (extreme fear = buy signal)
+    feargreed_below_thresholds = [10, 15, 20, 25, 30]
+
+    print("  Testing Fear & Greed Above conditions...")
+    for threshold in feargreed_above_thresholds:
+        params = {'feargreed_threshold': threshold}
+        events = find_feargreed_events(start_date, end_date, params, cross_above=True)
+        result = analyze_condition(target_df, target_df, events)
+        if result:
+            triggers.append({
+                'criteria': {
+                    'condition_type': 'feargreed_above',
+                    'condition_tickers': [],
+                    'target_ticker': target_ticker,
+                    'feargreed_threshold': threshold,
+                },
+                **result
+            })
+
+    print("  Testing Fear & Greed Below conditions...")
+    for threshold in feargreed_below_thresholds:
+        params = {'feargreed_threshold': threshold}
+        events = find_feargreed_events(start_date, end_date, params, cross_above=False)
+        result = analyze_condition(target_df, target_df, events)
+        if result:
+            triggers.append({
+                'criteria': {
+                    'condition_type': 'feargreed_below',
+                    'condition_tickers': [],
+                    'target_ticker': target_ticker,
+                    'feargreed_threshold': threshold,
+                },
+                **result
+            })
+
+    return triggers
+
+
 def discover_breadth_triggers(target_df: pd.DataFrame, ticker_data_dict: dict, membership_dict: dict, target_ticker: str) -> list:
     """Discover S&P 500 breadth triggers (% above/below 200 DMA)."""
     triggers = []
@@ -499,6 +547,8 @@ def triggers_match(t1: dict, t2: dict) -> bool:
                 c1.get('ma_long') == c2.get('ma_long'))
     elif 'vix' in ctype:
         return c1.get('vix_threshold') == c2.get('vix_threshold')
+    elif 'feargreed' in ctype:
+        return c1.get('feargreed_threshold') == c2.get('feargreed_threshold')
     elif 'breadth' in ctype or 'sp500_pct' in ctype:
         return c1.get('breadth_threshold') == c2.get('breadth_threshold')
 
@@ -576,6 +626,16 @@ def main():
         print(f"  Found {len(vix_triggers)} valid VIX triggers")
         all_triggers.extend(vix_triggers)
 
+    # Discover Fear & Greed triggers (only need to run once with SPY as target)
+    print(f"\n{'='*50}")
+    print("Analyzing Fear & Greed triggers...")
+    print("=" * 50)
+
+    if not spy_df.empty:
+        feargreed_triggers = discover_feargreed_triggers(spy_df, 'SPY', start_date.isoformat(), end_date.isoformat())
+        print(f"  Found {len(feargreed_triggers)} valid Fear & Greed triggers")
+        all_triggers.extend(feargreed_triggers)
+
     # Deduplicate and sort
     print(f"\n{'='*50}")
     print("Processing results...")
@@ -630,6 +690,8 @@ def main():
             params = f"s={criteria['ma_short']}, l={criteria['ma_long']}"
         elif 'vix' in ctype:
             params = f"threshold={criteria['vix_threshold']}"
+        elif 'feargreed' in ctype:
+            params = f"threshold={criteria['feargreed_threshold']}"
         elif 'breadth' in ctype or 'sp500_pct' in ctype:
             params = f"pct<={criteria['breadth_threshold']}%"
         else:

@@ -49,7 +49,9 @@ class Config:
         'putcall_above',
         'putcall_below',
         'vix_above',
-        'vix_below'
+        'vix_below',
+        'feargreed_above',
+        'feargreed_below'
     ]
 
     # Default condition parameters
@@ -73,5 +75,10 @@ class Config:
         # VIX > 30 = extreme fear = contrarian buy signal
         # VIX < 15 = complacency = potential caution
         'vix_above': {'vix_threshold': 30},
-        'vix_below': {'vix_threshold': 15}
+        'vix_below': {'vix_threshold': 15},
+        # Fear & Greed Index triggers (0-100 scale)
+        # Above 75 = Extreme greed = contrarian caution signal
+        # Below 25 = Extreme fear = contrarian buy signal
+        'feargreed_above': {'feargreed_threshold': 75},
+        'feargreed_below': {'feargreed_threshold': 25}
     }
