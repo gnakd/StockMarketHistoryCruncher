@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { saveCreatedTrigger, calculateScore, deriveSignal } from '../utils/createdTriggerStorage';
 
 const CONDITION_TYPES = [
   { value: 'dual_ath', label: 'Dual All-Time High', description: 'Both tickers hit ATH after gap period' },
@@ -32,7 +33,7 @@ const DEFAULT_PARAMS = {
   sp500_pct_above_200ma: { breadth_threshold: 30 }
 };
 
-function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied, apiKey, onApiKeyChange }) {
+function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied, apiKey, onApiKeyChange, results, onTriggerSaved }) {
   const [conditionTickers, setConditionTickers] = useState(['^DJI', '^DJT']);
   const [targetTicker, setTargetTicker] = useState('^GSPC');
   const [startDate, setStartDate] = useState('');
@@ -41,6 +42,7 @@ function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied, apiKe
   const [conditionParams, setConditionParams] = useState(DEFAULT_PARAMS.dual_ath);
   const [tickerInput, setTickerInput] = useState('');
   const [dataRangeLoaded, setDataRangeLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // Track if we just applied a trigger to prevent param reset
   const [triggerApplied, setTriggerApplied] = React.useState(false);
@@ -119,6 +121,78 @@ function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied, apiKe
       condition_params: conditionParams,
       api_key: apiKey
     });
+  };
+
+  const handleSaveTrigger = async () => {
+    const name = window.prompt('Enter a name for this trigger:');
+    if (!name || !name.trim()) return;
+
+    setSaving(true);
+    try {
+      // Build criteria object (same structure as discovered triggers)
+      const criteria = {
+        condition_type: conditionType,
+        condition_tickers: conditionTickers,
+        target_ticker: targetTicker,
+        ...conditionParams
+      };
+
+      // Extract metrics from results
+      // Keys are '1_year', '6_months', etc. Values are percentages (e.g., 12.5 = 12.5%)
+      const eventCount = results?.total_events || 0;
+      const avgReturnPct = results?.averages?.['1_year'];
+      const avgReturn = avgReturnPct != null ? avgReturnPct / 100 : null; // Convert to decimal (0.125 = 12.5%)
+      const winRatePct = results?.positives?.['1_year'];
+      const avgWinRate = winRatePct != null ? winRatePct / 100 : null; // Convert to decimal (0.75 = 75%)
+      const maxDrawdown = results?.averages?.max_drawdown || null;
+
+      // Calculate recent trigger count (events in last 30 days)
+      let recentCount = 0;
+      let latestDate = null;
+      if (results?.event_list && results.event_list.length > 0) {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+
+        recentCount = results.event_list.filter(e => e.date >= thirtyDaysAgoStr).length;
+        latestDate = results.event_list[results.event_list.length - 1]?.date;
+      }
+
+      // Calculate score
+      const score = calculateScore({
+        avg_return: avgReturn || 0,
+        avg_win_rate: avgWinRate || 0,
+        event_count: eventCount,
+        max_drawdown: maxDrawdown || 0
+      });
+
+      // Derive signal
+      const signal = deriveSignal(conditionType);
+
+      const triggerData = {
+        name: name.trim(),
+        criteria,
+        event_count: eventCount,
+        avg_return: avgReturn,
+        avg_win_rate: avgWinRate,
+        max_drawdown: maxDrawdown,
+        score,
+        signal,
+        recent_trigger_count: recentCount,
+        latest_trigger_date: latestDate
+      };
+
+      await saveCreatedTrigger(triggerData);
+      alert('Trigger saved successfully!');
+
+      if (onTriggerSaved) {
+        onTriggerSaved();
+      }
+    } catch (error) {
+      alert('Failed to save trigger: ' + error.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const renderConditionParams = () => {
@@ -425,8 +499,8 @@ function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied, apiKe
           </small>
         </div>
 
-        {/* Submit Button */}
-        <div className="col-12">
+        {/* Submit and Save Buttons */}
+        <div className="col-12 d-flex gap-2">
           <button
             type="submit"
             className="btn btn-analyze btn-lg"
@@ -439,6 +513,22 @@ function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied, apiKe
               </>
             ) : (
               'Analyze'
+            )}
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline-success btn-lg"
+            disabled={loading || saving || !results || !results.event_list || results.event_list.length === 0}
+            onClick={handleSaveTrigger}
+            title={!results ? 'Run analysis first to save trigger' : 'Save this trigger configuration'}
+          >
+            {saving ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                Saving...
+              </>
+            ) : (
+              'Save Trigger'
             )}
           </button>
         </div>

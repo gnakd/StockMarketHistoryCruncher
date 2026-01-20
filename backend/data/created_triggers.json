@@ -1,0 +1,27 @@
+{
+  "version": "1.0",
+  "triggers": [
+    {
+      "id": "c9c84f65-0bc7-4088-b78c-61f4b49df87d",
+      "name": "% of S&P 500 stocks below 200 DMA - <=20%",
+      "created_at": "2026-01-20T03:11:48.835620Z",
+      "criteria": {
+        "condition_type": "sp500_pct_above_200ma",
+        "condition_tickers": [
+          "^DJI",
+          "^DJT"
+        ],
+        "target_ticker": "SPY",
+        "breadth_threshold": 15
+      },
+      "event_count": 7,
+      "avg_return": 0.25780000000000003,
+      "avg_win_rate": 1,
+      "max_drawdown": -10.87,
+      "score": 83.9,
+      "signal": "bullish",
+      "recent_trigger_count": 0,
+      "latest_trigger_date": "2022-10-14"
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import numpy as np
 from datetime import datetime, timedelta, date
 import time
 import logging
+import uuid
 from config import Config
 from cache.putcall_ratio import get_putcall_manager, PutCallRatioManager
 from cache.vix import get_vix_manager, VIXManager
@@ -1483,6 +1484,177 @@ def get_putcall_stats():
         manager.load_cboe_historical(force_reload=False)
         return jsonify(manager.get_stats())
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# =============================================================================
+# Created Triggers CRUD Endpoints
+# =============================================================================
+
+def _get_created_triggers_file():
+    """Get path to created_triggers.json file."""
+    from pathlib import Path
+    return Path(__file__).parent / "data" / "created_triggers.json"
+
+
+def _load_created_triggers():
+    """Load created triggers from JSON file."""
+    import json
+    triggers_file = _get_created_triggers_file()
+    if not triggers_file.exists():
+        return {"version": "1.0", "triggers": []}
+    with open(triggers_file) as f:
+        return json.load(f)
+
+
+def _save_created_triggers(data):
+    """Save created triggers to JSON file."""
+    import json
+    triggers_file = _get_created_triggers_file()
+    with open(triggers_file, 'w') as f:
+        json.dump(data, f, indent=2)
+
+
+@app.route('/api/created_triggers', methods=['GET'])
+def get_created_triggers():
+    """Get all user-created triggers."""
+    try:
+        data = _load_created_triggers()
+        return jsonify({
+            'status': 'ok',
+            'triggers': data.get('triggers', []),
+            'version': data.get('version', '1.0')
+        })
+    except Exception as e:
+        logger.error(f"Failed to load created triggers: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'triggers': []
+        }), 500
+
+
+@app.route('/api/created_triggers', methods=['POST'])
+def create_trigger():
+    """Save a new user-created trigger."""
+    try:
+        trigger_data = request.get_json()
+
+        if not trigger_data:
+            return jsonify({'error': 'No trigger data provided'}), 400
+
+        # Validate required fields
+        required_fields = ['name', 'criteria']
+        for field in required_fields:
+            if field not in trigger_data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+
+        # Generate unique ID and timestamp
+        trigger = {
+            'id': str(uuid.uuid4()),
+            'name': trigger_data['name'],
+            'created_at': datetime.utcnow().isoformat() + 'Z',
+            'criteria': trigger_data['criteria'],
+            'event_count': trigger_data.get('event_count', 0),
+            'avg_return': trigger_data.get('avg_return'),
+            'avg_win_rate': trigger_data.get('avg_win_rate'),
+            'max_drawdown': trigger_data.get('max_drawdown'),
+            'score': trigger_data.get('score'),
+            'signal': trigger_data.get('signal'),
+            'recent_trigger_count': trigger_data.get('recent_trigger_count', 0),
+            'latest_trigger_date': trigger_data.get('latest_trigger_date')
+        }
+
+        # Load existing triggers and add new one
+        data = _load_created_triggers()
+        data['triggers'].append(trigger)
+        _save_created_triggers(data)
+
+        logger.info(f"Created trigger: {trigger['name']} (ID: {trigger['id']})")
+
+        return jsonify({
+            'status': 'ok',
+            'trigger': trigger
+        }), 201
+
+    except Exception as e:
+        logger.error(f"Failed to create trigger: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/created_triggers/<trigger_id>', methods=['DELETE'])
+def delete_trigger(trigger_id):
+    """Delete a user-created trigger by ID."""
+    try:
+        data = _load_created_triggers()
+        triggers = data.get('triggers', [])
+
+        # Find and remove the trigger
+        original_count = len(triggers)
+        triggers = [t for t in triggers if t.get('id') != trigger_id]
+
+        if len(triggers) == original_count:
+            return jsonify({'error': 'Trigger not found'}), 404
+
+        data['triggers'] = triggers
+        _save_created_triggers(data)
+
+        logger.info(f"Deleted trigger: {trigger_id}")
+
+        return jsonify({
+            'status': 'ok',
+            'message': 'Trigger deleted'
+        })
+
+    except Exception as e:
+        logger.error(f"Failed to delete trigger: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/created_triggers/<trigger_id>', methods=['PUT'])
+def update_trigger(trigger_id):
+    """Update a user-created trigger (e.g., rename)."""
+    try:
+        update_data = request.get_json()
+
+        if not update_data:
+            return jsonify({'error': 'No update data provided'}), 400
+
+        data = _load_created_triggers()
+        triggers = data.get('triggers', [])
+
+        # Find the trigger
+        trigger = None
+        for t in triggers:
+            if t.get('id') == trigger_id:
+                trigger = t
+                break
+
+        if not trigger:
+            return jsonify({'error': 'Trigger not found'}), 404
+
+        # Update allowed fields
+        allowed_updates = ['name', 'event_count', 'avg_return', 'avg_win_rate',
+                          'max_drawdown', 'score', 'signal', 'recent_trigger_count',
+                          'latest_trigger_date']
+
+        for field in allowed_updates:
+            if field in update_data:
+                trigger[field] = update_data[field]
+
+        trigger['updated_at'] = datetime.utcnow().isoformat() + 'Z'
+
+        _save_created_triggers(data)
+
+        logger.info(f"Updated trigger: {trigger_id}")
+
+        return jsonify({
+            'status': 'ok',
+            'trigger': trigger
+        })
+
+    except Exception as e:
+        logger.error(f"Failed to update trigger: {e}")
         return jsonify({'error': str(e)}), 500
 
 

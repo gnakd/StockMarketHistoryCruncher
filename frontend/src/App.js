@@ -1,10 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import axios from 'axios';
 import InputForm from './components/InputForm';
 import HistoricalChart from './components/HistoricalChart';
 import ForwardReturnsChart from './components/ForwardReturnsChart';
 import ResultsTable from './components/ResultsTable';
 import DiscoveredTriggers from './components/DiscoveredTriggers';
+import CreatedTriggers from './components/CreatedTriggers';
 import RecentTriggers from './components/RecentTriggers';
 import { exportToCSV } from './utils/export';
 
@@ -18,6 +19,9 @@ function App() {
     // Load from localStorage if available
     return localStorage.getItem('polygon_api_key') || '';
   });
+
+  // Ref to refresh CreatedTriggers when a new trigger is saved
+  const refreshCreatedTriggersRef = useRef(null);
 
   // Persist API key to localStorage
   const handleApiKeyChange = useCallback((key) => {
@@ -57,6 +61,17 @@ function App() {
     setError(null);
   }, []);
 
+  const handleTriggerSaved = useCallback(() => {
+    // Refresh the CreatedTriggers list when a new trigger is saved
+    if (refreshCreatedTriggersRef.current) {
+      refreshCreatedTriggersRef.current();
+    }
+  }, []);
+
+  const handleCreatedTriggersChange = useCallback((refreshFn) => {
+    refreshCreatedTriggersRef.current = refreshFn;
+  }, []);
+
   const generateTitle = () => {
     if (!formData) return 'Stock Market History Cruncher';
 
@@ -93,6 +108,12 @@ function App() {
         {/* All Discovered Triggers */}
         <DiscoveredTriggers onSelectTrigger={handleSelectTrigger} apiKey={apiKey} />
 
+        {/* User Created Triggers */}
+        <CreatedTriggers
+          onSelectTrigger={handleSelectTrigger}
+          onTriggersChange={handleCreatedTriggersChange}
+        />
+
         {/* Input Form */}
         <div className="card">
           <div className="card-header">
@@ -106,6 +127,8 @@ function App() {
               onTriggerApplied={() => setSelectedTrigger(null)}
               apiKey={apiKey}
               onApiKeyChange={handleApiKeyChange}
+              results={results}
+              onTriggerSaved={handleTriggerSaved}
             />
           </div>
         </div>
