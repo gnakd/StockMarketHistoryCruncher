@@ -9,6 +9,8 @@ function DiscoveredTriggers({ onSelectTrigger, apiKey }) {
   const [metadata, setMetadata] = useState(null);
   const [dataRange, setDataRange] = useState(null);
   const [expanded, setExpanded] = useState(true);
+  const [sortColumn, setSortColumn] = useState('score');
+  const [sortDirection, setSortDirection] = useState('desc');
 
   useEffect(() => {
     fetchTriggers();
@@ -117,13 +119,93 @@ function DiscoveredTriggers({ onSelectTrigger, apiKey }) {
     if (trigger.signal) return trigger.signal;
 
     const conditionType = trigger.criteria?.condition_type;
-    const bullishTypes = ['rsi_above', 'rsi_below', 'momentum_above', 'momentum_below', 'ma_crossover', 'single_ath', 'dual_ath', 'vix_above', 'putcall_above'];
-    const bearishTypes = ['ma_crossunder', 'vix_below', 'putcall_below'];
+    const bullishTypes = ['rsi_above', 'rsi_below', 'momentum_above', 'momentum_below', 'ma_crossover', 'single_ath', 'dual_ath', 'vix_above', 'putcall_above', 'feargreed_below'];
+    const bearishTypes = ['ma_crossunder', 'vix_below', 'putcall_below', 'feargreed_above'];
 
     if (bullishTypes.includes(conditionType)) return 'bullish';
     if (bearishTypes.includes(conditionType)) return 'bearish';
     return null;
   };
+
+  const handleSort = (column) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
+
+  const getSortedTriggers = () => {
+    return [...triggers].sort((a, b) => {
+      let aVal, bVal;
+
+      switch (sortColumn) {
+        case 'score':
+          aVal = a.score ?? 0;
+          bVal = b.score ?? 0;
+          break;
+        case 'target':
+          aVal = a.criteria?.target_ticker || '';
+          bVal = b.criteria?.target_ticker || '';
+          break;
+        case 'signal':
+          aVal = getSignalDirection(a) || '';
+          bVal = getSignalDirection(b) || '';
+          break;
+        case 'criteria':
+          aVal = getCriteriaDescription(a.criteria);
+          bVal = getCriteriaDescription(b.criteria);
+          break;
+        case 'events':
+          aVal = a.event_count ?? 0;
+          bVal = b.event_count ?? 0;
+          break;
+        case 'avgReturn':
+          aVal = a.avg_return ?? a.avg_return_1y ?? 0;
+          bVal = b.avg_return ?? b.avg_return_1y ?? 0;
+          break;
+        case 'winRate':
+          aVal = a.avg_win_rate ?? a.win_rate_1y ?? 0;
+          bVal = b.avg_win_rate ?? b.win_rate_1y ?? 0;
+          break;
+        case 'avgDD':
+          aVal = a.avg_drawdown ?? a.max_drawdown ?? a.avg_max_dd ?? 0;
+          bVal = b.avg_drawdown ?? b.max_drawdown ?? b.avg_max_dd ?? 0;
+          break;
+        case 'recent':
+          aVal = a.recent_trigger_count ?? 0;
+          bVal = b.recent_trigger_count ?? 0;
+          break;
+        case 'latest':
+          aVal = a.latest_trigger_date || '';
+          bVal = b.latest_trigger_date || '';
+          break;
+        default:
+          aVal = a.score ?? 0;
+          bVal = b.score ?? 0;
+      }
+
+      if (typeof aVal === 'string') {
+        const cmp = aVal.localeCompare(bVal);
+        return sortDirection === 'asc' ? cmp : -cmp;
+      }
+      return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+    });
+  };
+
+  const SortHeader = ({ column, children, style }) => (
+    <th
+      style={{ ...style, cursor: 'pointer', userSelect: 'none' }}
+      onClick={() => handleSort(column)}
+      title={`Sort by ${children}`}
+    >
+      {children}
+      {sortColumn === column && (
+        <span className="ms-1">{sortDirection === 'asc' ? '▲' : '▼'}</span>
+      )}
+    </th>
+  );
 
   const getCriteriaDescription = (criteria) => {
     const { condition_type, condition_tickers } = criteria;
@@ -145,6 +227,20 @@ function DiscoveredTriggers({ onSelectTrigger, apiKey }) {
         return `ATH (gap > ${criteria.days_gap} days)`;
       case 'dual_ath':
         return `Dual ATH: ${condition_tickers?.join(' & ')} (gap > ${criteria.days_gap})`;
+      case 'vix_above':
+        return `VIX > ${criteria.vix_threshold}`;
+      case 'vix_below':
+        return `VIX < ${criteria.vix_threshold}`;
+      case 'putcall_above':
+        return `P/C > ${criteria.putcall_threshold}`;
+      case 'putcall_below':
+        return `P/C < ${criteria.putcall_threshold}`;
+      case 'feargreed_above':
+        return `F&G > ${criteria.feargreed_threshold}`;
+      case 'feargreed_below':
+        return `F&G < ${criteria.feargreed_threshold}`;
+      case 'sp500_pct_above_200ma':
+        return `S&P breadth ≤${criteria.breadth_threshold}%`;
       default:
         return condition_type;
     }
@@ -260,22 +356,22 @@ function DiscoveredTriggers({ onSelectTrigger, apiKey }) {
                 <table className="table table-hover table-sm mb-0">
                   <thead className="sticky-top bg-white">
                     <tr>
-                      <th style={{ width: '45px' }}>Rank</th>
-                      <th style={{ width: '55px' }}>Score</th>
-                      <th style={{ width: '60px' }}>Target</th>
-                      <th style={{ width: '70px' }}>Signal</th>
-                      <th>Criteria</th>
-                      <th style={{ width: '60px' }}>Events</th>
-                      <th style={{ width: '70px' }}>Avg Ret</th>
-                      <th style={{ width: '70px' }}>Avg WR</th>
-                      <th style={{ width: '65px' }}>Avg DD</th>
-                      <th style={{ width: '55px' }}>Recent</th>
-                      <th style={{ width: '85px' }}>Latest</th>
+                      <th style={{ width: '45px' }}>#</th>
+                      <SortHeader column="score" style={{ width: '55px' }}>Score</SortHeader>
+                      <SortHeader column="target" style={{ width: '60px' }}>Target</SortHeader>
+                      <SortHeader column="signal" style={{ width: '70px' }}>Signal</SortHeader>
+                      <SortHeader column="criteria">Criteria</SortHeader>
+                      <SortHeader column="events" style={{ width: '60px' }}>Events</SortHeader>
+                      <SortHeader column="avgReturn" style={{ width: '70px' }}>Avg Ret</SortHeader>
+                      <SortHeader column="winRate" style={{ width: '70px' }}>Avg WR</SortHeader>
+                      <SortHeader column="avgDD" style={{ width: '65px' }}>Avg DD</SortHeader>
+                      <SortHeader column="recent" style={{ width: '55px' }}>Recent</SortHeader>
+                      <SortHeader column="latest" style={{ width: '85px' }}>Latest</SortHeader>
                       <th style={{ width: '60px' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {triggers.map((trigger, idx) => {
+                    {getSortedTriggers().map((trigger, idx) => {
                       // Support both old format (avg_return_1y) and new format (avg_return)
                       const avgReturn = trigger.avg_return ?? trigger.avg_return_1y;
                       const avgWinRate = trigger.avg_win_rate ?? trigger.win_rate_1y;
@@ -308,7 +404,7 @@ function DiscoveredTriggers({ onSelectTrigger, apiKey }) {
                               );
                             })()}
                           </td>
-                          <td className="small">{getCriteriaDescription(trigger.criteria)}</td>
+                          <td className="small text-truncate" style={{ maxWidth: '200px' }} title={getCriteriaDescription(trigger.criteria)}>{getCriteriaDescription(trigger.criteria)}</td>
                           <td>{trigger.event_count}</td>
                           <td className={avgReturn > 0 ? 'text-success' : avgReturn < 0 ? 'text-danger' : ''}>
                             {formatPercent(avgReturn)}

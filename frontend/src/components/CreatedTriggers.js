@@ -8,6 +8,8 @@ function CreatedTriggers({ onSelectTrigger, onTriggersChange }) {
   const [expanded, setExpanded] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
   const [renamingId, setRenamingId] = useState(null);
+  const [sortColumn, setSortColumn] = useState('score');
+  const [sortDirection, setSortDirection] = useState('desc');
 
   const fetchTriggers = useCallback(async () => {
     setLoading(true);
@@ -99,13 +101,93 @@ function CreatedTriggers({ onSelectTrigger, onTriggersChange }) {
     const conditionType = trigger.criteria?.condition_type;
     const bullishTypes = ['rsi_above', 'rsi_below', 'momentum_above', 'momentum_below',
                           'ma_crossover', 'single_ath', 'dual_ath', 'vix_above',
-                          'putcall_above', 'sp500_pct_above_200ma'];
-    const bearishTypes = ['ma_crossunder', 'vix_below', 'putcall_below'];
+                          'putcall_above', 'sp500_pct_above_200ma', 'feargreed_below'];
+    const bearishTypes = ['ma_crossunder', 'vix_below', 'putcall_below', 'feargreed_above'];
 
     if (bullishTypes.includes(conditionType)) return 'bullish';
     if (bearishTypes.includes(conditionType)) return 'bearish';
     return null;
   };
+
+  const handleSort = (column) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
+
+  const getSortedTriggers = () => {
+    return [...triggers].sort((a, b) => {
+      let aVal, bVal;
+
+      switch (sortColumn) {
+        case 'name':
+          aVal = a.name || '';
+          bVal = b.name || '';
+          break;
+        case 'score':
+          aVal = a.score ?? 0;
+          bVal = b.score ?? 0;
+          break;
+        case 'target':
+          aVal = a.criteria?.target_ticker || '';
+          bVal = b.criteria?.target_ticker || '';
+          break;
+        case 'signal':
+          aVal = getSignalDirection(a) || '';
+          bVal = getSignalDirection(b) || '';
+          break;
+        case 'criteria':
+          aVal = getCriteriaDescription(a.criteria);
+          bVal = getCriteriaDescription(b.criteria);
+          break;
+        case 'events':
+          aVal = a.event_count ?? 0;
+          bVal = b.event_count ?? 0;
+          break;
+        case 'avgReturn':
+          aVal = a.avg_return ?? 0;
+          bVal = b.avg_return ?? 0;
+          break;
+        case 'winRate':
+          aVal = a.avg_win_rate ?? 0;
+          bVal = b.avg_win_rate ?? 0;
+          break;
+        case 'avgDD':
+          aVal = a.max_drawdown ?? 0;
+          bVal = b.max_drawdown ?? 0;
+          break;
+        case 'latest':
+          aVal = a.latest_trigger_date || '';
+          bVal = b.latest_trigger_date || '';
+          break;
+        default:
+          aVal = a.score ?? 0;
+          bVal = b.score ?? 0;
+      }
+
+      if (typeof aVal === 'string') {
+        const cmp = aVal.localeCompare(bVal);
+        return sortDirection === 'asc' ? cmp : -cmp;
+      }
+      return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+    });
+  };
+
+  const SortHeader = ({ column, children, style }) => (
+    <th
+      style={{ ...style, cursor: 'pointer', userSelect: 'none' }}
+      onClick={() => handleSort(column)}
+      title={`Sort by ${children}`}
+    >
+      {children}
+      {sortColumn === column && (
+        <span className="ms-1">{sortDirection === 'asc' ? '▲' : '▼'}</span>
+      )}
+    </th>
+  );
 
   const getCriteriaDescription = (criteria) => {
     const { condition_type } = criteria;
@@ -137,6 +219,10 @@ function CreatedTriggers({ onSelectTrigger, onTriggersChange }) {
         return `P/C < ${criteria.putcall_threshold}`;
       case 'sp500_pct_above_200ma':
         return `S&P breadth drops to ≤${criteria.breadth_threshold}%`;
+      case 'feargreed_above':
+        return `F&G > ${criteria.feargreed_threshold}`;
+      case 'feargreed_below':
+        return `F&G < ${criteria.feargreed_threshold}`;
       default:
         return condition_type;
     }
@@ -197,21 +283,21 @@ function CreatedTriggers({ onSelectTrigger, onTriggersChange }) {
               <table className="table table-hover table-sm mb-0">
                 <thead className="sticky-top bg-white">
                   <tr>
-                    <th style={{ width: '120px' }}>Name</th>
-                    <th style={{ width: '55px' }}>Score</th>
-                    <th style={{ width: '60px' }}>Target</th>
-                    <th style={{ width: '70px' }}>Signal</th>
-                    <th>Criteria</th>
-                    <th style={{ width: '60px' }}>Events</th>
-                    <th style={{ width: '70px' }}>Avg Ret</th>
-                    <th style={{ width: '70px' }}>Win Rate</th>
-                    <th style={{ width: '65px' }}>Avg DD</th>
-                    <th style={{ width: '85px' }}>Latest</th>
+                    <SortHeader column="name" style={{ width: '120px' }}>Name</SortHeader>
+                    <SortHeader column="score" style={{ width: '55px' }}>Score</SortHeader>
+                    <SortHeader column="target" style={{ width: '60px' }}>Target</SortHeader>
+                    <SortHeader column="signal" style={{ width: '70px' }}>Signal</SortHeader>
+                    <SortHeader column="criteria">Criteria</SortHeader>
+                    <SortHeader column="events" style={{ width: '60px' }}>Events</SortHeader>
+                    <SortHeader column="avgReturn" style={{ width: '70px' }}>Avg Ret</SortHeader>
+                    <SortHeader column="winRate" style={{ width: '70px' }}>Win Rate</SortHeader>
+                    <SortHeader column="avgDD" style={{ width: '65px' }}>Avg DD</SortHeader>
+                    <SortHeader column="latest" style={{ width: '85px' }}>Latest</SortHeader>
                     <th style={{ width: '140px' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {triggers.map((trigger, idx) => {
+                  {getSortedTriggers().map((trigger, idx) => {
                     const avgReturn = trigger.avg_return;
                     const avgWinRate = trigger.avg_win_rate;
                     const maxDrawdown = trigger.max_drawdown;
@@ -243,7 +329,7 @@ function CreatedTriggers({ onSelectTrigger, onTriggersChange }) {
                             );
                           })()}
                         </td>
-                        <td className="small">{getCriteriaDescription(trigger.criteria)}</td>
+                        <td className="small text-truncate" style={{ maxWidth: '150px' }} title={getCriteriaDescription(trigger.criteria)}>{getCriteriaDescription(trigger.criteria)}</td>
                         <td>{trigger.event_count}</td>
                         <td className={avgReturn > 0 ? 'text-success' : avgReturn < 0 ? 'text-danger' : ''}>
                           {formatPercent(avgReturn)}
