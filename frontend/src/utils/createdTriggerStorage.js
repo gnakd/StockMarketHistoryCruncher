@@ -137,8 +137,8 @@ export function calculateScore(metrics) {
 export function deriveSignal(conditionType) {
   const bullishTypes = ['rsi_above', 'rsi_below', 'momentum_above', 'momentum_below',
                         'ma_crossover', 'single_ath', 'dual_ath', 'vix_above',
-                        'putcall_above', 'sp500_pct_above_200ma'];
-  const bearishTypes = ['ma_crossunder', 'vix_below', 'putcall_below'];
+                        'putcall_above', 'sp500_pct_above_200ma', 'feargreed_below'];
+  const bearishTypes = ['ma_crossunder', 'vix_below', 'putcall_below', 'feargreed_above'];
 
   if (bullishTypes.includes(conditionType)) return 'bullish';
   if (bearishTypes.includes(conditionType)) return 'bearish';

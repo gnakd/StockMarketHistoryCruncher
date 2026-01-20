@@ -14,6 +14,8 @@ const CONDITION_TYPES = [
   { value: 'putcall_below', label: 'Put/Call Ratio Below', description: 'P/C crosses below threshold (complacency = caution)' },
   { value: 'vix_above', label: 'VIX Above', description: 'VIX crosses above threshold (fear spike = contrarian buy)' },
   { value: 'vix_below', label: 'VIX Below', description: 'VIX crosses below threshold (complacency = caution)' },
+  { value: 'feargreed_above', label: 'Fear & Greed Above', description: 'CNN Fear & Greed crosses above threshold (extreme greed = caution)' },
+  { value: 'feargreed_below', label: 'Fear & Greed Below', description: 'CNN Fear & Greed crosses below threshold (extreme fear = buy signal)' },
   { value: 'sp500_pct_above_200ma', label: 'S&P 500 % Above 200 DMA', description: '% of S&P 500 stocks above 200-day MA drops to threshold (fear = buy signal)' }
 ];
 
@@ -30,6 +32,8 @@ const DEFAULT_PARAMS = {
   putcall_below: { putcall_threshold: 0.7 },
   vix_above: { vix_threshold: 30 },
   vix_below: { vix_threshold: 15 },
+  feargreed_above: { feargreed_threshold: 75 },
+  feargreed_below: { feargreed_threshold: 25 },
   sp500_pct_above_200ma: { breadth_threshold: 30 }
 };
 
@@ -338,6 +342,28 @@ function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied, apiKe
           </div>
         );
 
+      case 'feargreed_above':
+      case 'feargreed_below':
+        return (
+          <div className="col-md-4">
+            <label className="form-label">Fear & Greed Threshold</label>
+            <input
+              type="number"
+              className="form-control"
+              value={conditionParams.feargreed_threshold || (conditionType === 'feargreed_above' ? 75 : 25)}
+              onChange={(e) => handleParamChange('feargreed_threshold', e.target.value)}
+              min="0"
+              max="100"
+              step="1"
+            />
+            <small className="text-muted">
+              {conditionType === 'feargreed_above'
+                ? 'Extreme greed (>75) = potential caution. Scale: 0-100'
+                : 'Extreme fear (<25) = contrarian buy signal. Scale: 0-100'}
+            </small>
+          </div>
+        );
+
       case 'sp500_pct_above_200ma':
         return (
           <div className="col-md-4">
@@ -364,7 +390,7 @@ function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied, apiKe
     <form onSubmit={handleSubmit}>
       <div className="row g-3">
         {/* Condition Tickers - hidden for conditions that don't need them */}
-        {!['sp500_pct_above_200ma', 'putcall_above', 'putcall_below', 'vix_above', 'vix_below'].includes(conditionType) ? (
+        {!['sp500_pct_above_200ma', 'putcall_above', 'putcall_below', 'vix_above', 'vix_below', 'feargreed_above', 'feargreed_below'].includes(conditionType) ? (
           <div className="col-md-6">
             <label className="form-label">Condition Tickers</label>
             <div className="input-group mb-2">
@@ -410,6 +436,8 @@ function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied, apiKe
                   ? 'This condition automatically uses all S&P 500 constituents. No condition tickers needed.'
                   : conditionType.startsWith('vix_')
                   ? 'VIX data from FRED (1990-present). No condition tickers needed.'
+                  : conditionType.startsWith('feargreed_')
+                  ? 'CNN Fear & Greed Index data (2011-present). No condition tickers needed.'
                   : 'Put/Call ratio uses CBOE market-wide data (2003-2019). No condition tickers needed.'}
               </small>
             </div>
@@ -504,7 +532,7 @@ function InputForm({ onSubmit, loading, selectedTrigger, onTriggerApplied, apiKe
           <button
             type="submit"
             className="btn btn-analyze btn-lg"
-            disabled={loading || (conditionTickers.length === 0 && !['sp500_pct_above_200ma', 'putcall_above', 'putcall_below', 'vix_above', 'vix_below'].includes(conditionType))}
+            disabled={loading || (conditionTickers.length === 0 && !['sp500_pct_above_200ma', 'putcall_above', 'putcall_below', 'vix_above', 'vix_below', 'feargreed_above', 'feargreed_below'].includes(conditionType))}
           >
             {loading ? (
               <>
