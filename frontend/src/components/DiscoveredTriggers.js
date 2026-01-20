@@ -274,6 +274,17 @@ function DiscoveredTriggers({ onSelectTrigger, apiKey }) {
           {triggers.length > 0 && (
             <span className="badge bg-success ms-2">{triggers.length}</span>
           )}
+          <a
+            href="/docs/scoring.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ms-2 text-decoration-none"
+            style={{ fontSize: '0.75rem' }}
+            title="View scoring documentation"
+            onClick={(e) => e.stopPropagation()}
+          >
+            (scoring)
+          </a>
         </h5>
         <div className="d-flex align-items-center">
           <button
