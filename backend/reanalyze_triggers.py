@@ -24,6 +24,7 @@ from app import (
     compute_statistics,
     compute_average_forward_curve,
 )
+from discover_triggers import determine_signal_from_returns
 
 
 def find_rsi_events(df: pd.DataFrame, period: int, threshold: float, cross_above: bool) -> list:
@@ -174,21 +175,35 @@ def analyze_trigger(criteria: dict, cache_manager: CacheManager, start_date: dat
 
     if returns_1y:
         avg_return = np.mean(returns_1y) / 100  # Convert from percentage
-        win_rate = sum(1 for r in returns_1y if r > 0) / len(returns_1y)
         std_return = np.std(returns_1y) / 100 if len(returns_1y) > 1 else None
         sharpe = (avg_return / std_return) if std_return and std_return > 0 else None
+
+        # Determine signal direction from actual returns
+        is_bearish = avg_return < 0
+
+        if is_bearish:
+            # For bearish signals: win = price went DOWN (negative return)
+            win_rate = sum(1 for r in returns_1y if r < 0) / len(returns_1y)
+        else:
+            # For bullish signals: win = price went UP (positive return)
+            win_rate = sum(1 for r in returns_1y if r > 0) / len(returns_1y)
     else:
         avg_return = None
         win_rate = None
         sharpe = None
+        is_bearish = False
 
     # Calculate normalized score (0-100 scale)
     # Each component normalized to 0-1, then weighted to sum to 100
     if avg_return is not None and win_rate is not None:
-        return_score = min(avg_return / 0.40, 1.0)       # Cap at 40% annual return
-        winrate_score = win_rate                          # Already 0-1
-        sharpe_score = min(sharpe / 2.5, 1.0) if sharpe else 0  # Cap at 2.5 Sharpe
-        significance_score = min(len(events) / 30, 1.0)  # 30+ events = full credit
+        # Use absolute values - works for both bullish and bearish
+        effective_return = abs(avg_return)
+        effective_sharpe = abs(sharpe) if sharpe else 0
+
+        return_score = min(effective_return / 0.40, 1.0)       # Cap at 40% annual return
+        winrate_score = win_rate                                # Already 0-1
+        sharpe_score = min(effective_sharpe / 2.5, 1.0) if effective_sharpe else 0  # Cap at 2.5 Sharpe
+        significance_score = min(len(events) / 30, 1.0)        # 30+ events = full credit
 
         # Weighted score (weights sum to 100)
         score = (return_score * 30 +       # 30% weight: returns
@@ -214,6 +229,7 @@ def analyze_trigger(criteria: dict, cache_manager: CacheManager, start_date: dat
         'latest_trigger_date': events[-1].strftime('%Y-%m-%d') if events else None,
         'averages': averages,
         'positives': positives,
+        'is_bearish': bool(is_bearish),  # Convert numpy bool to Python bool for JSON
     }
 
 
@@ -268,6 +284,7 @@ def main():
                 'sharpe_like': result['sharpe_like'],
                 'recent_trigger_count': result['recent_trigger_count'],
                 'latest_trigger_date': result['latest_trigger_date'],
+                'signal': determine_signal_from_returns(result['avg_return_1y']),
             }
             updated_triggers.append(updated_trigger)
 

@@ -39,30 +39,16 @@ MIN_WIN_RATE = 0.70
 MIN_AVG_RETURN = 0.08  # 8% annual
 MIN_SCORE = 55
 
-# Signal direction mapping
-# Bullish = expect price to go UP (buy signal)
-# Bearish = expect price to go DOWN (sell/caution signal)
-SIGNAL_DIRECTION = {
-    'rsi_above': 'bullish',       # Strong momentum, trend continuation
-    'rsi_below': 'bullish',       # Oversold contrarian buy
-    'momentum_above': 'bullish',  # Strong upward momentum
-    'momentum_below': 'bullish',  # Oversold contrarian buy (historically works as buy signal)
-    'ma_crossover': 'bullish',    # Golden cross
-    'ma_crossunder': 'bearish',   # Death cross
-    'single_ath': 'bullish',      # Breakout to new highs
-    'dual_ath': 'bullish',        # Confirmed breakout
-    'vix_above': 'bullish',       # High fear = contrarian buy
-    'vix_below': 'bearish',       # Complacency = caution
-    'putcall_above': 'bullish',   # High fear = contrarian buy
-    'putcall_below': 'bearish',   # Complacency = caution
-    'feargreed_above': 'bearish', # Extreme greed = caution
-    'feargreed_below': 'bullish', # Extreme fear = contrarian buy
-}
+# Signal direction is now determined dynamically based on actual historical returns:
+# - Bullish: positive avg returns with high win rate (price went UP)
+# - Bearish: negative avg returns with high decline rate (price went DOWN)
 
 
-def get_signal_direction(condition_type: str) -> str:
-    """Get the signal direction (bullish/bearish) for a condition type."""
-    return SIGNAL_DIRECTION.get(condition_type, 'neutral')
+def determine_signal_from_returns(avg_return: float) -> str:
+    """Determine signal direction based on actual historical returns."""
+    if avg_return is None:
+        return 'neutral'
+    return 'bullish' if avg_return >= 0 else 'bearish'
 
 
 def find_rsi_events(df: pd.DataFrame, period: int, threshold: float, cross_above: bool) -> list:
@@ -150,13 +136,22 @@ def find_ma_crossover_events(df: pd.DataFrame, short_period: int, long_period: i
 
 
 def calculate_score(avg_return: float, win_rate: float, sharpe: float, num_events: int) -> float:
-    """Calculate normalized 0-100 score."""
+    """Calculate normalized 0-100 score.
+
+    For both bullish and bearish signals, we use absolute values since:
+    - Bullish: higher positive returns are better
+    - Bearish: more negative returns (larger absolute value) are better
+    """
     if avg_return is None or win_rate is None:
         return 0
 
-    return_score = min(avg_return / 0.40, 1.0)
+    # Use absolute values - works for both bullish (positive) and bearish (negative) returns
+    effective_return = abs(avg_return)
+    effective_sharpe = abs(sharpe) if sharpe else 0
+
+    return_score = min(effective_return / 0.40, 1.0)
     winrate_score = win_rate
-    sharpe_score = min(sharpe / 2.5, 1.0) if sharpe else 0
+    sharpe_score = min(effective_sharpe / 2.5, 1.0) if effective_sharpe else 0
     significance_score = min(num_events / 30, 1.0)
 
     score = (return_score * 30 +
@@ -167,8 +162,13 @@ def calculate_score(avg_return: float, win_rate: float, sharpe: float, num_event
     return round(score, 2)
 
 
-def analyze_condition(df: pd.DataFrame, target_df: pd.DataFrame, events: list) -> dict:
-    """Analyze forward returns for a set of events."""
+def analyze_condition(df: pd.DataFrame, target_df: pd.DataFrame, events: list, condition_type: str = None) -> dict:
+    """Analyze forward returns for a set of events.
+
+    Signal direction (bullish/bearish) is determined by actual historical returns:
+    - Positive avg returns → bullish (win_rate = % of gains)
+    - Negative avg returns → bearish (win_rate = % of declines)
+    """
     if len(events) < MIN_EVENTS:
         return None
 
@@ -182,13 +182,26 @@ def analyze_condition(df: pd.DataFrame, target_df: pd.DataFrame, events: list) -
         return None
 
     avg_return = np.mean(returns_1y) / 100
-    win_rate = sum(1 for r in returns_1y if r > 0) / len(returns_1y)
     std_return = np.std(returns_1y) / 100 if len(returns_1y) > 1 else None
-    sharpe = (avg_return / std_return) if std_return and std_return > 0 else None
     avg_max_dd = np.mean(max_drawdowns) / 100 if max_drawdowns else None
 
-    if win_rate < MIN_WIN_RATE or avg_return < MIN_AVG_RETURN:
-        return None
+    # Determine signal direction from actual returns
+    is_bearish = avg_return < 0
+
+    if is_bearish:
+        # For bearish signals: win = price went DOWN (negative return)
+        win_rate = sum(1 for r in returns_1y if r < 0) / len(returns_1y)
+        sharpe = (avg_return / std_return) if std_return and std_return > 0 else None
+        # Filter: expect negative returns and high "decline rate"
+        if win_rate < MIN_WIN_RATE or avg_return > -MIN_AVG_RETURN:
+            return None
+    else:
+        # For bullish signals: win = price went UP (positive return)
+        win_rate = sum(1 for r in returns_1y if r > 0) / len(returns_1y)
+        sharpe = (avg_return / std_return) if std_return and std_return > 0 else None
+        # Filter: expect positive returns and high win rate
+        if win_rate < MIN_WIN_RATE or avg_return < MIN_AVG_RETURN:
+            return None
 
     score = calculate_score(avg_return, win_rate, sharpe, len(events))
 
@@ -209,6 +222,7 @@ def analyze_condition(df: pd.DataFrame, target_df: pd.DataFrame, events: list) -
         'score': score,
         'recent_trigger_count': len(recent_events),
         'latest_trigger_date': events[-1].strftime('%Y-%m-%d') if events else None,
+        'is_bearish': bool(is_bearish),  # Convert numpy bool to Python bool for JSON
     }
 
 
@@ -224,7 +238,7 @@ def discover_rsi_triggers(df: pd.DataFrame, target_df: pd.DataFrame, ticker: str
     print("  Testing RSI Above conditions...")
     for period, threshold in product(rsi_periods, rsi_above_thresholds):
         events = find_rsi_events(df, period, threshold, cross_above=True)
-        result = analyze_condition(df, target_df, events)
+        result = analyze_condition(df, target_df, events, condition_type='rsi_above')
         if result:
             triggers.append({
                 'criteria': {
@@ -240,7 +254,7 @@ def discover_rsi_triggers(df: pd.DataFrame, target_df: pd.DataFrame, ticker: str
     print("  Testing RSI Below conditions...")
     for period, threshold in product(rsi_periods, rsi_below_thresholds):
         events = find_rsi_events(df, period, threshold, cross_above=False)
-        result = analyze_condition(df, target_df, events)
+        result = analyze_condition(df, target_df, events, condition_type='rsi_below')
         if result:
             triggers.append({
                 'criteria': {
@@ -267,7 +281,7 @@ def discover_momentum_triggers(df: pd.DataFrame, target_df: pd.DataFrame, ticker
     print("  Testing Momentum Above conditions...")
     for period, threshold in product(momentum_periods, momentum_above_thresholds):
         events = find_momentum_events(df, period, threshold)
-        result = analyze_condition(df, target_df, events)
+        result = analyze_condition(df, target_df, events, condition_type='momentum_above')
         if result:
             triggers.append({
                 'criteria': {
@@ -283,7 +297,7 @@ def discover_momentum_triggers(df: pd.DataFrame, target_df: pd.DataFrame, ticker
     print("  Testing Momentum Below conditions...")
     for period, threshold in product(momentum_periods, momentum_below_thresholds):
         events = find_momentum_events(df, period, threshold)
-        result = analyze_condition(df, target_df, events)
+        result = analyze_condition(df, target_df, events, condition_type='momentum_below')
         if result:
             triggers.append({
                 'criteria': {
@@ -309,9 +323,9 @@ def discover_ma_triggers(df: pd.DataFrame, target_df: pd.DataFrame, ticker: str)
 
     print("  Testing MA Crossover conditions...")
     for short, long in ma_combinations:
-        # Golden Cross
+        # Golden Cross (bullish)
         events = find_ma_crossover_events(df, short, long, cross_above=True)
-        result = analyze_condition(df, target_df, events)
+        result = analyze_condition(df, target_df, events, condition_type='ma_crossover')
         if result:
             triggers.append({
                 'criteria': {
@@ -324,9 +338,9 @@ def discover_ma_triggers(df: pd.DataFrame, target_df: pd.DataFrame, ticker: str)
                 **result
             })
 
-        # Death Cross (for potential short signals or caution)
+        # Death Cross (bearish - expects price decline)
         events = find_ma_crossover_events(df, short, long, cross_above=False)
-        result = analyze_condition(df, target_df, events)
+        result = analyze_condition(df, target_df, events, condition_type='ma_crossunder')
         if result:
             triggers.append({
                 'criteria': {
@@ -354,7 +368,7 @@ def discover_vix_triggers(target_df: pd.DataFrame, target_ticker: str, start_dat
     for threshold in vix_above_thresholds:
         params = {'vix_threshold': threshold}
         events = find_vix_events(start_date, end_date, params, cross_above=True)
-        result = analyze_condition(target_df, target_df, events)
+        result = analyze_condition(target_df, target_df, events, condition_type='vix_above')
         if result:
             triggers.append({
                 'criteria': {
@@ -366,11 +380,11 @@ def discover_vix_triggers(target_df: pd.DataFrame, target_ticker: str, start_dat
                 **result
             })
 
-    print("  Testing VIX Below conditions...")
+    print("  Testing VIX Below conditions (bearish)...")
     for threshold in vix_below_thresholds:
         params = {'vix_threshold': threshold}
         events = find_vix_events(start_date, end_date, params, cross_above=False)
-        result = analyze_condition(target_df, target_df, events)
+        result = analyze_condition(target_df, target_df, events, condition_type='vix_below')
         if result:
             triggers.append({
                 'criteria': {
@@ -395,11 +409,11 @@ def discover_feargreed_triggers(target_df: pd.DataFrame, target_ticker: str, sta
     # Below thresholds (extreme fear = buy signal)
     feargreed_below_thresholds = [10, 15, 20, 25, 30]
 
-    print("  Testing Fear & Greed Above conditions...")
+    print("  Testing Fear & Greed Above conditions (bearish)...")
     for threshold in feargreed_above_thresholds:
         params = {'feargreed_threshold': threshold}
         events = find_feargreed_events(start_date, end_date, params, cross_above=True)
-        result = analyze_condition(target_df, target_df, events)
+        result = analyze_condition(target_df, target_df, events, condition_type='feargreed_above')
         if result:
             triggers.append({
                 'criteria': {
@@ -415,7 +429,7 @@ def discover_feargreed_triggers(target_df: pd.DataFrame, target_ticker: str, sta
     for threshold in feargreed_below_thresholds:
         params = {'feargreed_threshold': threshold}
         events = find_feargreed_events(start_date, end_date, params, cross_above=False)
-        result = analyze_condition(target_df, target_df, events)
+        result = analyze_condition(target_df, target_df, events, condition_type='feargreed_below')
         if result:
             triggers.append({
                 'criteria': {
@@ -447,7 +461,7 @@ def discover_breadth_triggers(target_df: pd.DataFrame, ticker_data_dict: dict, m
     for threshold in breadth_below_thresholds:
         params = {'breadth_threshold': threshold}
         events = find_breadth_threshold_events(breadth_df, params)
-        result = analyze_condition(target_df, target_df, events)
+        result = analyze_condition(target_df, target_df, events, condition_type='sp500_pct_above_200ma')
         if result:
             triggers.append({
                 'criteria': {
@@ -700,10 +714,10 @@ def main():
         print(f"{i:<5} {ticker:<7} {ctype:<18} {params:<22} {trigger['event_count']:<8} "
               f"{trigger['avg_return_1y']:.1%}    {trigger['win_rate_1y']:.1%}    {trigger['score']:<7}")
 
-    # Add signal direction to each trigger
+    # Add signal direction to each trigger based on actual returns
     for trigger in top_triggers:
-        condition_type = trigger.get('criteria', {}).get('condition_type', '')
-        trigger['signal'] = get_signal_direction(condition_type)
+        avg_return = trigger.get('avg_return_1y', 0)
+        trigger['signal'] = determine_signal_from_returns(avg_return)
 
     # Save to triggers.json
     triggers_file = Path(__file__).parent / "discovered_triggers" / "triggers.json"

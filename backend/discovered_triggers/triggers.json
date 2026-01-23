@@ -1,11 +1,11 @@
 {
   "version": "1.1",
-  "updated_at": "2026-01-20T08:53:17.765671",
+  "updated_at": "2026-01-22T23:29:09.511671",
   "total_tested": 313,
   "total_valid": 96,
   "date_range": {
     "start": "2016-01-18",
-    "end": "2026-01-20"
+    "end": "2026-01-22"
   },
   "triggers": [
     {
@@ -26,6 +26,7 @@
       "score": 88.5,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-06-12",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -46,6 +47,7 @@
       "score": 88.0,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-04-04",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -66,6 +68,7 @@
       "score": 87.83,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-05-30",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -82,7 +85,8 @@
       "sharpe_like": 5.03,
       "score": 87.15,
       "recent_trigger_count": 0,
-      "latest_trigger_date": null,
+      "latest_trigger_date": "2025-04-10",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -103,6 +107,7 @@
       "score": 86.11,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-05-15",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -123,6 +128,7 @@
       "score": 83.89,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2020-11-11",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -143,6 +149,7 @@
       "score": 83.67,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-05-12",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -163,6 +170,7 @@
       "score": 83.02,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-04-04",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -183,6 +191,7 @@
       "score": 81.46,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-04-03",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -203,6 +212,7 @@
       "score": 81.3,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2020-11-20",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -223,6 +233,7 @@
       "score": 80.84,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-05-20",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -243,6 +254,7 @@
       "score": 78.54,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-05-15",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -262,7 +274,8 @@
       "sharpe_like": 1.97,
       "score": 77.85,
       "recent_trigger_count": 0,
-      "latest_trigger_date": null,
+      "latest_trigger_date": "2025-05-22",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -283,6 +296,7 @@
       "score": 76.76,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-04-04",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -303,6 +317,7 @@
       "score": 76.15,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-05-08",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -318,11 +333,12 @@
       "event_count": 131,
       "avg_return_1y": 0.2399,
       "win_rate_1y": 0.9412,
-      "avg_max_dd": -0.1582,
+      "avg_max_dd": -0.1583,
       "sharpe_like": 1.48,
       "score": 75.98,
       "recent_trigger_count": 1,
       "latest_trigger_date": "2026-01-07",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -342,7 +358,8 @@
       "sharpe_like": 2.02,
       "score": 75.06,
       "recent_trigger_count": 0,
-      "latest_trigger_date": null,
+      "latest_trigger_date": "2025-06-20",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -363,6 +380,7 @@
       "score": 73.49,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-11-18",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -379,7 +397,8 @@
       "sharpe_like": 1.77,
       "score": 73.45,
       "recent_trigger_count": 0,
-      "latest_trigger_date": null,
+      "latest_trigger_date": "2025-04-10",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -400,6 +419,7 @@
       "score": 73.32,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-05-23",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -417,7 +437,8 @@
       "score": 73.29,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2023-12-25",
-      "signal": "bearish"
+      "is_bearish": false,
+      "signal": "bullish"
     },
     {
       "criteria": {
@@ -437,6 +458,7 @@
       "score": 73.25,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-11-28",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -457,6 +479,7 @@
       "score": 73.02,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-12-11",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -477,6 +500,7 @@
       "score": 72.99,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2024-07-16",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -489,12 +513,13 @@
       "event_count": 59,
       "avg_return_1y": 0.1437,
       "win_rate_1y": 0.98,
-      "avg_max_dd": -0.1498,
+      "avg_max_dd": -0.1504,
       "sharpe_like": 1.75,
       "score": 72.72,
-      "recent_trigger_count": 0,
-      "latest_trigger_date": null,
-      "signal": "bearish"
+      "recent_trigger_count": 1,
+      "latest_trigger_date": "2026-01-09",
+      "is_bearish": false,
+      "signal": "bullish"
     },
     {
       "criteria": {
@@ -509,11 +534,12 @@
       "event_count": 97,
       "avg_return_1y": 0.2316,
       "win_rate_1y": 0.8966,
-      "avg_max_dd": -0.1562,
+      "avg_max_dd": -0.1564,
       "sharpe_like": 1.3,
       "score": 72.29,
-      "recent_trigger_count": 1,
+      "recent_trigger_count": 0,
       "latest_trigger_date": "2025-12-22",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -529,11 +555,12 @@
       "event_count": 65,
       "avg_return_1y": 0.2396,
       "win_rate_1y": 0.8852,
-      "avg_max_dd": -0.1774,
+      "avg_max_dd": -0.1776,
       "sharpe_like": 1.26,
       "score": 72.09,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-12-17",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -549,11 +576,12 @@
       "event_count": 30,
       "avg_return_1y": 0.2399,
       "win_rate_1y": 0.8846,
-      "avg_max_dd": -0.1705,
+      "avg_max_dd": -0.1711,
       "sharpe_like": 1.24,
       "score": 71.93,
-      "recent_trigger_count": 0,
-      "latest_trigger_date": null,
+      "recent_trigger_count": 1,
+      "latest_trigger_date": "2025-12-30",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -574,6 +602,7 @@
       "score": 71.68,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-04-15",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -594,6 +623,7 @@
       "score": 71.49,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-12-02",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -614,6 +644,7 @@
       "score": 71.25,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-06-03",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -631,7 +662,8 @@
       "score": 71.11,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2020-11-24",
-      "signal": "bearish"
+      "is_bearish": false,
+      "signal": "bullish"
     },
     {
       "criteria": {
@@ -646,11 +678,12 @@
       "event_count": 173,
       "avg_return_1y": 0.2236,
       "win_rate_1y": 0.8896,
-      "avg_max_dd": -0.161,
+      "avg_max_dd": -0.1611,
       "sharpe_like": 1.2,
       "score": 70.5,
       "recent_trigger_count": 2,
       "latest_trigger_date": "2026-01-12",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -671,6 +704,7 @@
       "score": 70.46,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-04-21",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -688,7 +722,8 @@
       "score": 70.42,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2020-11-25",
-      "signal": "bearish"
+      "is_bearish": false,
+      "signal": "bullish"
     },
     {
       "criteria": {
@@ -703,11 +738,12 @@
       "event_count": 119,
       "avg_return_1y": 0.2163,
       "win_rate_1y": 0.9065,
-      "avg_max_dd": -0.1637,
+      "avg_max_dd": -0.1638,
       "sharpe_like": 1.2,
       "score": 70.38,
       "recent_trigger_count": 1,
       "latest_trigger_date": "2026-01-06",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -723,11 +759,12 @@
       "event_count": 97,
       "avg_return_1y": 0.236,
       "win_rate_1y": 0.8736,
-      "avg_max_dd": -0.1662,
+      "avg_max_dd": -0.1663,
       "sharpe_like": 1.14,
       "score": 70.34,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-12-15",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -743,11 +780,12 @@
       "event_count": 107,
       "avg_return_1y": 0.2079,
       "win_rate_1y": 0.913,
-      "avg_max_dd": -0.1576,
+      "avg_max_dd": -0.1579,
       "sharpe_like": 1.23,
       "score": 70.32,
       "recent_trigger_count": 1,
       "latest_trigger_date": "2026-01-15",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -763,11 +801,12 @@
       "event_count": 133,
       "avg_return_1y": 0.2159,
       "win_rate_1y": 0.8908,
-      "avg_max_dd": -0.1655,
+      "avg_max_dd": -0.1656,
       "sharpe_like": 1.21,
       "score": 70.05,
       "recent_trigger_count": 1,
       "latest_trigger_date": "2026-01-09",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -788,6 +827,7 @@
       "score": 70.02,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-11-28",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -801,13 +841,14 @@
         "momentum_threshold": 0.02
       },
       "event_count": 185,
-      "avg_return_1y": 0.2254,
-      "win_rate_1y": 0.8788,
-      "avg_max_dd": -0.1749,
-      "sharpe_like": 1.14,
-      "score": 69.71,
+      "avg_return_1y": 0.2251,
+      "win_rate_1y": 0.8795,
+      "avg_max_dd": -0.1751,
+      "sharpe_like": 1.15,
+      "score": 69.74,
       "recent_trigger_count": 2,
       "latest_trigger_date": "2026-01-09",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -823,11 +864,12 @@
       "event_count": 91,
       "avg_return_1y": 0.2174,
       "win_rate_1y": 0.8889,
-      "avg_max_dd": -0.1665,
+      "avg_max_dd": -0.1667,
       "sharpe_like": 1.15,
       "score": 69.46,
       "recent_trigger_count": 1,
       "latest_trigger_date": "2026-01-06",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -848,6 +890,7 @@
       "score": 69.44,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-03-10",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -861,13 +904,14 @@
         "rsi_threshold": 55
       },
       "event_count": 177,
-      "avg_return_1y": 0.2175,
-      "win_rate_1y": 0.8861,
-      "avg_max_dd": -0.1634,
+      "avg_return_1y": 0.2173,
+      "win_rate_1y": 0.8868,
+      "avg_max_dd": -0.1636,
       "sharpe_like": 1.14,
-      "score": 69.32,
+      "score": 69.35,
       "recent_trigger_count": 2,
       "latest_trigger_date": "2026-01-09",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -883,11 +927,12 @@
       "event_count": 105,
       "avg_return_1y": 0.2108,
       "win_rate_1y": 0.8842,
-      "avg_max_dd": -0.1694,
+      "avg_max_dd": -0.1695,
       "sharpe_like": 1.2,
       "score": 69.3,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-12-19",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -908,6 +953,7 @@
       "score": 69.25,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-12-04",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -923,11 +969,12 @@
       "event_count": 69,
       "avg_return_1y": 0.234,
       "win_rate_1y": 0.8571,
-      "avg_max_dd": -0.1811,
+      "avg_max_dd": -0.1813,
       "sharpe_like": 1.08,
       "score": 69.03,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-12-17",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -940,12 +987,13 @@
       "event_count": 64,
       "avg_return_1y": 0.1346,
       "win_rate_1y": 0.9206,
-      "avg_max_dd": -0.1599,
+      "avg_max_dd": -0.1601,
       "sharpe_like": 1.63,
       "score": 68.97,
-      "recent_trigger_count": 0,
-      "latest_trigger_date": null,
-      "signal": "bearish"
+      "recent_trigger_count": 1,
+      "latest_trigger_date": "2025-12-23",
+      "is_bearish": false,
+      "signal": "bullish"
     },
     {
       "criteria": {
@@ -965,6 +1013,7 @@
       "score": 68.95,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-12-05",
+      "is_bearish": false,
       "signal": "bullish"
     },
     {
@@ -985,8 +1034,9 @@
       "score": 68.66,
       "recent_trigger_count": 0,
       "latest_trigger_date": "2025-04-16",
+      "is_bearish": false,
       "signal": "bullish"
     }
   ],
-  "activity_refreshed_at": "2026-01-20T08:53:17.765679"
+  "activity_refreshed_at": "2026-01-22T23:29:09.511678"
 }
